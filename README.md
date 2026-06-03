@@ -28,14 +28,14 @@ If Common Grounds made your home café a little more fun, consider [buying me a 
 - Easy selection of preset drink options (e.g. temperature, milk type, etc.)
 - Optional freeform text field to post a message to the public queue
 
-![Guest order form](screenshots/guest-order.JPG)
+<div align="center"><img src="screenshots/guest-order.JPG" width="350" /></div>
 
 ### Public queue display (`/#/queue`)
 - A read-only screen to display on a TV or spare monitor
 - Shows who's up next with names, photos, and messages
 - "Served" section shows completed orders
 
-![Public queue display](screenshots/public-queue.png)
+<div align="center"><img src="screenshots/public-queue.png" width="700" /></div>
 
 ### Admin panel (`/#/admin`)
 The admin panel is PIN-protected and contains two tabs: **Queue** and **Settings**.
@@ -45,7 +45,7 @@ The admin panel is PIN-protected and contains two tabs: **Queue** and **Settings
 - Mark orders done or remove them
 - Completed orders section for reference
 
-![Barista view](screenshots/barista-view.JPG)
+<div align="center"><img src="screenshots/barista-view.JPG" width="350" /></div>
 
 **Settings tab (café configuration):**
 - Change the admin panel PIN
@@ -56,11 +56,13 @@ The admin panel is PIN-protected and contains two tabs: **Queue** and **Settings
 - Open/close the café, customize the closed message, set an optional guest access code
 - Clear all orders when the event wraps
 
-![Admin panel 1](screenshots/admin-panel-1.png)
-![Admin panel 2](screenshots/admin-panel-2.png)
-![Admin panel 3](screenshots/admin-panel-3.png)
-![Admin panel 4](screenshots/admin-panel-4.png)
-![Admin panel 5](screenshots/admin-panel-5.png)
+<div align="center">
+<img src="screenshots/admin-panel-1.png" width="700" />
+<img src="screenshots/admin-panel-2.png" width="700" />
+<img src="screenshots/admin-panel-3.png" width="700" />
+<img src="screenshots/admin-panel-4.png" width="700" />
+<img src="screenshots/admin-panel-5.png" width="700" />
+</div>
 
 ---
 
