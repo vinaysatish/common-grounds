@@ -446,18 +446,22 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState(opt.label);
   const [choices, setChoices] = useState(opt.choices||[]);
+  const [defaultChoiceId, setDefaultChoiceId] = useState(opt.defaultChoiceId||null);
   const [newChoice, setNewChoice] = useState({name:"",description:""});
   const [editingChoiceId, setEditingChoiceId] = useState(null);
   const [editDraft, setEditDraft] = useState({name:"",description:""});
 
   const save = () => {
     if (!label.trim()||choices.length===0) return;
-    onUpdate({...opt, label:label.trim(), choices});
+    // null (not undefined) when no/stale default — Firebase rejects undefined.
+    const def = choices.some(c=>c.id===defaultChoiceId) ? defaultChoiceId : null;
+    onUpdate({...opt, label:label.trim(), choices, defaultChoiceId:def});
     setOpen(false);
   };
   const cancel = () => {
     setLabel(opt.label);
     setChoices(opt.choices||[]);
+    setDefaultChoiceId(opt.defaultChoiceId||null);
     setNewChoice({name:"",description:""});
     setEditingChoiceId(null);
     setOpen(false);
@@ -467,7 +471,7 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
     setChoices(prev=>[...prev,{id:uid(),name:newChoice.name.trim(),description:newChoice.description.trim()}]);
     setNewChoice({name:"",description:""});
   };
-  const removeChoice = (id) => setChoices(prev=>prev.filter(c=>c.id!==id));
+  const removeChoice = (id) => { setChoices(prev=>prev.filter(c=>c.id!==id)); setDefaultChoiceId(d=>d===id?null:d); };
   const startEdit = (c) => { setEditingChoiceId(c.id); setEditDraft({name:c.name,description:c.description}); };
   const saveEdit = (id) => {
     if (!editDraft.name.trim()) return;
@@ -501,6 +505,7 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
           {/* Existing choices */}
           <div style={{marginBottom:10}}>
             <div className="subsection">Choices</div>
+            {choices.length>0&&<div className="hint" style={{marginTop:-2,marginBottom:8}}>Select the ◉ default choice guests start with.</div>}
             {choices.length===0&&<div style={{fontSize:13,opacity:.5,marginBottom:8}}>No choices yet.</div>}
             {choices.map(c=>(
               <div key={c.id} style={{background:"rgba(0,0,0,.04)",borderRadius:8,padding:"10px 12px",marginBottom:7}}>
@@ -523,8 +528,9 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
                   </div>
                 ) : (
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <input type="radio" name={`def-${opt.id}`} checked={defaultChoiceId===c.id} onChange={()=>setDefaultChoiceId(c.id)} title="Set as default" style={{cursor:"pointer",flexShrink:0}}/>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13.5,fontWeight:500}}>{c.name}</div>
+                      <div style={{fontSize:13.5,fontWeight:500}}>{c.name}{defaultChoiceId===c.id&&<span style={{marginLeft:7,fontSize:10.5,fontWeight:600,opacity:.6,textTransform:"uppercase",letterSpacing:".04em"}}>Default</span>}</div>
                       {c.description&&<div style={{fontSize:12,opacity:.6,marginTop:2}}>{c.description}</div>}
                     </div>
                     <button className="btn btn-o sm" onClick={()=>startEdit(c)}>Edit</button>
@@ -1215,7 +1221,20 @@ const Guest = ({ config, isOpen, onOrder }) => {
   const drinkOptions = drink ? (config.options||[]).filter(o=>(drink.optionIds||[]).includes(o.id)) : [];
   const valid = () => !!sanitizeName(name) && !!drinkId && drinkOptions.every(o=>selections[o.id]);
 
-  const selectDrink = (id) => { setDrinkId(id); setSelections({}); };
+  const selectDrink = (id) => {
+    setDrinkId(id);
+    // Pre-select each option's default choice (or its first choice as a fallback).
+    const d = config.menu.find(x=>x.id===id);
+    const opts = d ? (config.options||[]).filter(o=>(d.optionIds||[]).includes(o.id)) : [];
+    const init = {};
+    for (const o of opts) {
+      const cs = o.choices||[];
+      if (!cs.length) continue;
+      const def = cs.find(c=>c.id===o.defaultChoiceId) || cs[0];
+      init[o.id] = def.name || def;
+    }
+    setSelections(init);
+  };
 
   const openCam = async () => {
     setCam(true);
