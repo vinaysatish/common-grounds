@@ -79,6 +79,7 @@ const DEFAULT_CONFIG = {
   logoMode:"emoji", logoImage:null,
   closedMessage:"We're not open yet — check back soon.",
   accessCode:"",
+  photoEnabled:true,
   options: DEFAULT_OPTIONS,
   // Menu sections, in display order. Each drink references one via `categoryId`.
   categories: [],
@@ -1061,6 +1062,10 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
           <div className="tlabel"><span className={`dot ${isOpen?"dot-on":"dot-off"}`}/>{isOpen?"Open — accepting orders":"Closed"}</div>
           <button className={`tog ${isOpen?"on":"off"}`} onClick={()=>setIsOpen(v=>!v)}/>
         </div>
+        <div className="trow">
+          <div className="tlabel">Photo capture <span style={{opacity:.5,fontWeight:400}}>— let guests add a photo</span></div>
+          <button className={`tog ${config.photoEnabled!==false?"on":"off"}`} onClick={()=>upd({photoEnabled:config.photoEnabled===false})}/>
+        </div>
         <div className="field" style={{marginBottom:8,marginTop:4}}>
           <label>Closed message</label>
           <input value={config.closedMessage||""} onChange={e=>upd({closedMessage:e.target.value})} placeholder="We're not open yet — check back soon." maxLength={120}/>
@@ -1206,12 +1211,12 @@ const Guest = ({ config, isOpen, onOrder }) => {
           {nameErr&&<div className="ferr">{nameErr}</div>}
         </div>
 
-        {!cam&&(
+        {config.photoEnabled!==false && !cam && (
           <div className="photo-zone" onClick={openCam}>
             {photo?<><img src={photo} className="photo-thumb" alt="you"/><div style={{fontSize:12.5,opacity:.6}}>Tap to retake</div></>:<><div style={{fontSize:30,marginBottom:7}}>📷</div><div style={{fontSize:13.5,opacity:.6}}>Add a photo <span style={{opacity:.8}}>(optional)</span></div></>}
           </div>
         )}
-        {cam&&(
+        {config.photoEnabled!==false && cam && (
           <div style={{marginBottom:18,textAlign:"center"}}>
             <video ref={vidRef} autoPlay playsInline style={{width:"100%",borderRadius:9,marginBottom:9}}/>
             <div style={{display:"flex",gap:7,justifyContent:"center"}}>
