@@ -76,7 +76,7 @@ const DEFAULT_OPTIONS = [
 
 const DEFAULT_CONFIG = {
   cafeName:"Home Café", tagline:"Crafted with care", logoEmoji:"☕",
-  logoMode:"emoji", logoImage:null,
+  logoMode:"emoji", logoImage:null, logoSize:"small",
   closedMessage:"We're not open yet — check back soon.",
   accessCode:"",
   photoEnabled:true,
@@ -791,10 +791,14 @@ const LogoDisplay = ({ config, size="nav" }) => {
       ? <img src={config.logoImage} alt="logo" style={{height:32,maxWidth:120,objectFit:"contain",borderRadius:4}}/>
       : <span>{emoji}</span>;
   }
-  // hero
+  // hero — scaled by the configured logo size (defaults to small = original).
+  const sizeKey = config.logoSize || "small";
+  const emojiPx = { small:46, medium:66, large:88, xl:112, xxl:140 }[sizeKey] || 46;
+  const imgPx = { small:72, medium:104, large:140, xl:184, xxl:232 }[sizeKey] || 72;
+  const imgMax = { small:240, medium:300, large:360, xl:440, xxl:520 }[sizeKey] || 240;
   return useImage
-    ? <img src={config.logoImage} alt="logo" style={{height:72,maxWidth:240,objectFit:"contain",borderRadius:6,marginBottom:14,display:"block",margin:"0 auto 14px"}}/>
-    : <span className="hero-ico">{emoji}</span>;
+    ? <img src={config.logoImage} alt="logo" style={{height:imgPx,maxWidth:imgMax,objectFit:"contain",borderRadius:6,display:"block",margin:"0 auto 14px"}}/>
+    : <span className="hero-ico" style={{fontSize:emojiPx}}>{emoji}</span>;
 };
 
 // ─────────────────────────────────────────────
@@ -879,6 +883,16 @@ const BrandingCard = ({ config, upd }) => {
             {imgError && <div className="ferr" style={{marginTop:4}}>{imgError}</div>}
           </div>
         )}
+
+        <div style={{marginTop:14}}>
+          <div style={{fontSize:12.5,fontWeight:500,marginBottom:8,opacity:.7}}>Logo size</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {[["small","Small"],["medium","Medium"],["large","Large"],["xl","XL"],["xxl","XXL"]].map(([s,lbl])=>(
+              <button key={s} className={`btn sm ${(config.logoSize||"small")===s?"btn-p":"btn-o"}`} onClick={()=>upd({logoSize:s})}>{lbl}</button>
+            ))}
+          </div>
+          <div className="hint" style={{marginTop:6}}>Controls the large logo on the order and queue screens.</div>
+        </div>
       </div>
     </div>
   );
