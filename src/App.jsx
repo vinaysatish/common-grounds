@@ -80,6 +80,8 @@ const DEFAULT_CONFIG = {
   closedMessage:"We're not open yet — check back soon.",
   accessCode:"",
   options: DEFAULT_OPTIONS,
+  // Menu sections, in display order. Each drink references one via `categoryId`.
+  categories: [],
   menu: [
     { id:"1", name:"Espresso",    optionIds:[],                     description:"" },
     { id:"2", name:"Cortado",     optionIds:["opt-milk"],            description:"" },
@@ -241,6 +243,16 @@ const GlobalStyles = ({ theme }) => {
         .dtile.on{border-color:${C.highlight};background:${C.cardAlt}}
         .dtile-name{font-size:13.5px;font-weight:600;color:${C.text};line-height:1.3;margin-bottom:3px}
         .dtile-desc{font-size:11.5px;color:${C.textMuted};line-height:1.4;margin-top:3px}
+        .menu-section-title{font-family:${F.display};font-size:16px;font-weight:600;color:${C.headingText};margin:20px 0 9px;padding-bottom:5px;border-bottom:1.5px solid ${C.border}}
+        .dlist{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+        .drow{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 15px;border:2px solid ${C.border};border-radius:10px;cursor:pointer;transition:all .15s;background:${C.cardBg}}
+        .drow:hover{border-color:${C.accentLight};background:${C.cardAlt}}
+        .drow.on{border-color:${C.highlight};background:${C.cardAlt}}
+        .drow-body{flex:1;min-width:0}
+        .drow-name{font-size:14.5px;font-weight:600;color:${C.text};line-height:1.3}
+        .drow-desc{font-size:12px;color:${C.textMuted};line-height:1.4;margin-top:3px}
+        .drow-check{flex-shrink:0;width:22px;height:22px;border-radius:50%;border:2px solid ${C.border};display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;transition:all .15s}
+        .drow.on .drow-check{background:${C.highlight};border-color:${C.highlight}}
         .pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
         .pill{padding:6px 15px;border:2px solid ${C.border};border-radius:100px;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .15s;background:${C.cardBg};color:${C.text};display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:34px;text-align:center}
         .pill:hover{border-color:${C.accentLight}}
@@ -270,6 +282,7 @@ const GlobalStyles = ({ theme }) => {
         .mrow-header{display:flex;align-items:flex-start;gap:9px;padding:11px 13px}
         .mrow-info{flex:1;min-width:0}
         .mrow-name{font-size:14px;font-weight:600;color:${C.text};margin-bottom:2px}
+        .mrow-cat{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:100px;font-size:10.5px;font-weight:600;letter-spacing:.03em;color:${C.highlight};background:${C.cardAlt};border:1px solid ${C.border};vertical-align:middle}
         .mrow-desc{font-size:12px;color:${C.textMuted};line-height:1.4;margin-top:2px}
         .mrow-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
         .mrow-edit{background:${C.cardAlt};border-top:1px solid ${C.border};padding:13px}
@@ -403,6 +416,31 @@ const PinScreen = ({ mode, storedHash, onSuccess, onSetPin }) => {
 // ─────────────────────────────────────────────
 // OPTION ROW (admin) — add/edit/delete option types
 // ─────────────────────────────────────────────
+const CategoryRow = ({ cat, onUpdate, onDelete, onMoveUp, onMoveDown }) => {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(cat.name);
+  const save = () => { if (!name.trim()) return; onUpdate({ ...cat, name: name.trim() }); setEditing(false); };
+  const cancel = () => { setName(cat.name); setEditing(false); };
+  return (
+    <div className="opt-row">
+      <div className="opt-header">
+        {editing
+          ? <input value={name} onChange={e=>setName(e.target.value)} maxLength={30} autoFocus
+              onKeyDown={e=>{if(e.key==="Enter")save();if(e.key==="Escape")cancel();}} style={{flex:1,minWidth:0}}/>
+          : <span className="opt-label" style={{flex:1,minWidth:0}}>{cat.name}</span>}
+        <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0}}>
+          <button className="btn btn-o sm" onClick={onMoveUp} disabled={!onMoveUp} style={{padding:"5px 8px"}}>↑</button>
+          <button className="btn btn-o sm" onClick={onMoveDown} disabled={!onMoveDown} style={{padding:"5px 8px"}}>↓</button>
+          {editing
+            ? <button className="btn btn-p sm" disabled={!name.trim()} onClick={save}>Save</button>
+            : <button className="btn btn-o sm" onClick={()=>setEditing(true)}>Edit</button>}
+          <button className="btn btn-d sm" onClick={()=>onDelete(cat.id)}>✕</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const OptionRow = ({ opt, onUpdate, onDelete }) => {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState(opt.label);
@@ -525,7 +563,7 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
 // ─────────────────────────────────────────────
 // MENU ITEM ROW (admin) — inline editable, generalized options
 // ─────────────────────────────────────────────
-const MenuItemRow = ({ drink, allOptions, onUpdate, onDelete, onMoveUp, onMoveDown }) => {
+const MenuItemRow = ({ drink, allOptions, allCategories=[], onUpdate, onDelete, onMoveUp, onMoveDown }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(drink);
 
@@ -533,16 +571,18 @@ const MenuItemRow = ({ drink, allOptions, onUpdate, onDelete, onMoveUp, onMoveDo
     const ids = draft.optionIds||[];
     setDraft(d=>({...d, optionIds: ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]}));
   };
+  const setCategory = (id) => setDraft(d=>({...d, categoryId: d.categoryId===id ? "" : id}));
   const save = () => { onUpdate({...draft,name:draft.name.trim()}); setEditing(false); };
   const cancel = () => { setDraft(drink); setEditing(false); };
 
   const appliedOptions = allOptions.filter(o=>(drink.optionIds||[]).includes(o.id));
+  const appliedCategory = allCategories.find(c=>c.id===drink.categoryId);
 
   return (
     <div className="mrow">
       <div className="mrow-header">
         <div className="mrow-info">
-          <div className="mrow-name">{drink.name}</div>
+          <div className="mrow-name">{drink.name}{appliedCategory && <span className="mrow-cat">{appliedCategory.name}</span>}</div>
           {drink.description && <div className="mrow-desc">{drink.description}</div>}
           {appliedOptions.length > 0 && (
             <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
@@ -567,6 +607,16 @@ const MenuItemRow = ({ drink, allOptions, onUpdate, onDelete, onMoveUp, onMoveDo
             <label>Description (optional)</label>
             <textarea value={draft.description||""} onChange={e=>setDraft(d=>({...d,description:e.target.value}))} placeholder="e.g. Espresso, oat milk, house-made vanilla syrup — served iced" maxLength={200} rows={2}/>
           </div>
+          {allCategories.length>0 && (
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:12.5,fontWeight:500,marginBottom:6,opacity:.7}}>Category</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {allCategories.map(c=>(
+                  <button key={c.id} className={`mtoggle ${draft.categoryId===c.id?"on":"off"}`} onClick={()=>setCategory(c.id)}>{c.name}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {allOptions.length>0 && (
             <div style={{marginBottom:10}}>
               <div style={{fontSize:12.5,fontWeight:500,marginBottom:6,opacity:.7}}>Options</div>
@@ -827,10 +877,12 @@ const BrandingCard = ({ config, upd }) => {
 // ADMIN
 // ─────────────────────────────────────────────
 const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClearOrders, onChangePin, onSignOut, themeConfig, setThemeConfig, resolvedColors }) => {
-  const [newDrink, setNewDrink] = useState({name:"",optionIds:[],description:""});
+  const [newDrink, setNewDrink] = useState({name:"",optionIds:[],description:"",categoryId:""});
   const [newOpt, setNewOpt] = useState({label:""});
+  const [newCat, setNewCat] = useState({name:""});
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDelOpt, setConfirmDelOpt] = useState(null);
+  const [confirmDelCat, setConfirmDelCat] = useState(null);
 
   const upd = (patch) => setConfig(c=>({...c,...patch}));
 
@@ -847,7 +899,30 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
   const addDrink = () => {
     if (!newDrink.name.trim()) return;
     upd({menu:[...config.menu,{...newDrink,id:uid(),name:newDrink.name.trim()}]});
-    setNewDrink({name:"",optionIds:[],description:""});
+    setNewDrink({name:"",optionIds:[],description:"",categoryId:""});
+  };
+
+  const cats = config.categories||[];
+  const updateCategory = (updated) => upd({categories:cats.map(c=>c.id===updated.id?updated:c)});
+  const deleteCategory = (id) => {
+    upd({
+      categories: cats.filter(c=>c.id!==id),
+      menu: config.menu.map(d=>d.categoryId===id?{...d,categoryId:""}:d),
+    });
+    setConfirmDelCat(null);
+  };
+  const addCategory = () => {
+    if (!newCat.name.trim()) return;
+    upd({categories:[...cats,{id:uid(),name:newCat.name.trim()}]});
+    setNewCat({name:""});
+  };
+  const moveCategory = (id, dir) => {
+    const list = [...cats];
+    const idx = list.findIndex(c=>c.id===id);
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= list.length) return;
+    [list[idx], list[newIdx]] = [list[newIdx], list[idx]];
+    upd({categories:list});
   };
 
   const updateOption = (updated) => upd({options:config.options.map(o=>o.id===updated.id?updated:o)});
@@ -868,6 +943,7 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
     const ids=newDrink.optionIds||[];
     setNewDrink(d=>({...d,optionIds:ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]}));
   };
+  const setNewDrinkCat = (id) => setNewDrink(d=>({...d,categoryId:d.categoryId===id?"":id}));
 
   return (
     <div className="page">
@@ -907,13 +983,37 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         <button className="btn btn-p sm" disabled={!newOpt.label.trim()} onClick={addOption}>Add Option</button>
       </div>
 
+      {/* Menu Sections */}
+      <div className="card">
+        <div className="eyebrow">Menu Sections</div>
+        <div style={{fontSize:12.5,opacity:.55,marginTop:6,marginBottom:14,lineHeight:1.5}}>
+          Group drinks into sections on the order page. Drag order with ↑↓ — that's the order guests see. Assign each drink to a section when you edit it below.
+        </div>
+        {cats.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 12px"}}>No sections yet. Add one below, then assign drinks to it.</div>}
+        {cats.map((cat,i)=>(
+          <CategoryRow key={cat.id} cat={cat} onUpdate={updateCategory} onDelete={(id)=>setConfirmDelCat(id)}
+            onMoveUp={i>0 ? ()=>moveCategory(cat.id,-1) : null}
+            onMoveDown={i<cats.length-1 ? ()=>moveCategory(cat.id,1) : null}
+          />
+        ))}
+        <hr className="divider" style={{margin:"14px 0"}}/>
+        <div className="subsection">Add Section</div>
+        <div style={{marginTop:9,marginBottom:10}}>
+          <div className="field" style={{marginBottom:10}}>
+            <label>Name</label>
+            <input value={newCat.name} onChange={e=>setNewCat({name:e.target.value})} placeholder="e.g. Coffee" maxLength={30} onKeyDown={e=>e.key==="Enter"&&addCategory()}/>
+          </div>
+        </div>
+        <button className="btn btn-p sm" disabled={!newCat.name.trim()} onClick={addCategory}>Add Section</button>
+      </div>
+
       {/* Menu */}
       <div className="card">
         <div className="eyebrow">Menu</div>
         <div style={{marginTop:11,marginBottom:14}}>
           {config.menu.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"13px 0"}}>No drinks yet.</div>}
           {config.menu.map((d,i)=>(
-            <MenuItemRow key={d.id} drink={d} allOptions={config.options||[]} onUpdate={updateDrink} onDelete={deleteDrink}
+            <MenuItemRow key={d.id} drink={d} allOptions={config.options||[]} allCategories={cats} onUpdate={updateDrink} onDelete={deleteDrink}
               onMoveUp={i>0 ? ()=>moveDrink(d.id,-1) : null}
               onMoveDown={i<config.menu.length-1 ? ()=>moveDrink(d.id,1) : null}
             />
@@ -930,6 +1030,16 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
             <label>Description (optional)</label>
             <textarea value={newDrink.description} onChange={e=>setNewDrink(d=>({...d,description:e.target.value}))} placeholder="e.g. Espresso, oat milk, house-made vanilla syrup — served iced" maxLength={200} rows={2}/>
           </div>
+          {cats.length>0&&(
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12.5,fontWeight:500,marginBottom:6,opacity:.7}}>Category</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {cats.map(c=>(
+                  <button key={c.id} className={`mtoggle ${newDrink.categoryId===c.id?"on":"off"}`} onClick={()=>setNewDrinkCat(c.id)}>{c.name}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {(config.options||[]).length>0&&(
             <div style={{marginBottom:12}}>
               <div style={{fontSize:12.5,fontWeight:500,marginBottom:6,opacity:.7}}>Options</div>
@@ -973,6 +1083,7 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
 
       {confirmClear&&<Confirm title="Clear all orders?" body={`This will permanently remove all pending and completed orders. This cannot be undone.`} confirmLabel="Clear orders" danger onConfirm={()=>{onClearOrders();setConfirmClear(false);}} onCancel={()=>setConfirmClear(false)}/>}
       {confirmDelOpt&&<Confirm title="Delete this option?" body="This will remove the option from all drinks that use it. This cannot be undone." confirmLabel="Delete" danger onConfirm={()=>deleteOption(confirmDelOpt)} onCancel={()=>setConfirmDelOpt(null)}/>}
+      {confirmDelCat&&<Confirm title="Delete this section?" body="Drinks in this section won't be deleted — they'll just become uncategorized. This cannot be undone." confirmLabel="Delete" danger onConfirm={()=>deleteCategory(confirmDelCat)} onCancel={()=>setConfirmDelCat(null)}/>}
     </div>
   );
 };
@@ -1111,14 +1222,32 @@ const Guest = ({ config, isOpen, onOrder }) => {
         )}
 
         <div className="eyebrow">Choose your drink</div>
-        <div className="dgrid" style={{marginTop:9}}>
-          {config.menu.map(d=>(
-            <div key={d.id} className={`dtile ${drinkId===d.id?"on":""}`} onClick={()=>selectDrink(d.id)}>
-              <div className="dtile-name">{d.name}</div>
-              {d.description&&<div className="dtile-desc">{d.description}</div>}
+        {(() => {
+          // Build ordered, non-empty sections from the managed category list;
+          // drinks with no/unknown category go in a trailing "More" section.
+          const cats = config.categories || [];
+          const catIds = new Set(cats.map(c => c.id));
+          const sections = cats
+            .map(cat => ({ title: cat.name, items: config.menu.filter(d => d.categoryId === cat.id) }))
+            .filter(s => s.items.length);
+          const rest = config.menu.filter(d => !d.categoryId || !catIds.has(d.categoryId));
+          if (rest.length) sections.push({ title: sections.length ? "More" : "", items: rest });
+          const renderRow = d => (
+            <div key={d.id} className={`drow ${drinkId===d.id?"on":""}`} onClick={()=>selectDrink(d.id)}>
+              <div className="drow-body">
+                <div className="drow-name">{d.name}</div>
+                {d.description&&<div className="drow-desc">{d.description}</div>}
+              </div>
+              <div className="drow-check">{drinkId===d.id?"✓":""}</div>
             </div>
-          ))}
-        </div>
+          );
+          return sections.map((s,i) => (
+            <div key={s.title||i}>
+              {s.title && <div className="menu-section-title">{s.title}</div>}
+              <div className="dlist" style={!s.title?{marginTop:9}:undefined}>{s.items.map(renderRow)}</div>
+            </div>
+          ));
+        })()}
 
         {/* Render options in global order */}
         {drinkOptions.map(opt=>{
