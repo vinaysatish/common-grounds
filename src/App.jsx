@@ -254,6 +254,10 @@ const GlobalStyles = ({ theme }) => {
         .drow-desc{font-size:12px;color:${C.textMuted};line-height:1.4;margin-top:3px}
         .drow-check{flex-shrink:0;width:22px;height:22px;border-radius:50%;border:2px solid ${C.border};display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;transition:all .15s}
         .drow.on .drow-check{background:${C.highlight};border-color:${C.highlight}}
+        .drow-check.on{background:${C.highlight};border-color:${C.highlight}}
+        .picked{display:flex;align-items:center;gap:12px;padding:12px 15px;border:2px solid ${C.highlight};border-radius:10px;background:${C.cardAlt};cursor:pointer;margin:9px 0 6px}
+        .picked-body{flex:1;min-width:0}
+        .picked-name{font-size:15px;font-weight:600;color:${C.text};line-height:1.3}
         .pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
         .pill{padding:6px 15px;border:2px solid ${C.border};border-radius:100px;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .15s;background:${C.cardBg};color:${C.text};display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:34px;text-align:center}
         .pill:hover{border-color:${C.accentLight}}
@@ -1208,6 +1212,7 @@ const Guest = ({ config, isOpen, onOrder }) => {
   const [nameErr, setNameErr] = useState("");
   const [photo, setPhoto] = useState(null);
   const [drinkId, setDrinkId] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(true); // drink list expanded?
   const [selections, setSelections] = useState({}); // { optionId: choiceValue }
   const [request, setRequest] = useState("");
   const [message, setMessage] = useState("");
@@ -1234,6 +1239,7 @@ const Guest = ({ config, isOpen, onOrder }) => {
       init[o.id] = def.name || def;
     }
     setSelections(init);
+    setPickerOpen(false); // collapse the list to bring options into focus
   };
 
   const openCam = async () => {
@@ -1271,7 +1277,7 @@ const Guest = ({ config, isOpen, onOrder }) => {
     setDone(true); setBusy(false);
   },[busy,name,drinkId,selections,photo,request,message,drink,drinkOptions]);
 
-  const reset = () => { setName("");setPhoto(null);setDrinkId(null);setSelections({});setRequest("");setMessage("");setDone(false);setNameErr(""); };
+  const reset = () => { setName("");setPhoto(null);setDrinkId(null);setPickerOpen(true);setSelections({});setRequest("");setMessage("");setDone(false);setNameErr(""); };
 
   if (!isOpen) return <div className="page"><div className="hero"><LogoDisplay config={config} size="hero"/><div className="hero-name">{config.cafeName}</div><div className="hero-tag">{config.closedMessage||"We're not open yet — check back soon."}</div></div></div>;
 
@@ -1332,33 +1338,46 @@ const Guest = ({ config, isOpen, onOrder }) => {
           </div>
         )}
 
-        <div className="eyebrow">Choose your drink</div>
-        {(() => {
-          // Build ordered, non-empty sections from the managed category list;
-          // drinks with no/unknown category go in a trailing "More" section.
-          const cats = config.categories || [];
-          const catIds = new Set(cats.map(c => c.id));
-          const sections = cats
-            .map(cat => ({ title: cat.name, items: config.menu.filter(d => d.categoryId === cat.id) }))
-            .filter(s => s.items.length);
-          const rest = config.menu.filter(d => !d.categoryId || !catIds.has(d.categoryId));
-          if (rest.length) sections.push({ title: sections.length ? "More" : "", items: rest });
-          const renderRow = d => (
-            <div key={d.id} className={`drow ${drinkId===d.id?"on":""}`} onClick={()=>selectDrink(d.id)}>
-              <div className="drow-body">
-                <div className="drow-name">{d.name}</div>
-                {d.description&&<div className="drow-desc">{d.description}</div>}
-              </div>
-              <div className="drow-check">{drinkId===d.id?"✓":""}</div>
+        {drink && !pickerOpen ? (
+          <div className="picked" onClick={()=>setPickerOpen(true)}>
+            <div className="drow-check on">✓</div>
+            <div className="picked-body">
+              <div className="eyebrow" style={{marginBottom:2}}>Your drink</div>
+              <div className="picked-name">{drink.name}</div>
             </div>
-          );
-          return sections.map((s,i) => (
-            <div key={s.title||i}>
-              {s.title && <div className="menu-section-title">{s.title}</div>}
-              <div className="dlist" style={!s.title?{marginTop:9}:undefined}>{s.items.map(renderRow)}</div>
-            </div>
-          ));
-        })()}
+            <button type="button" className="btn btn-o sm" onClick={(e)=>{e.stopPropagation();setPickerOpen(true);}}>Change</button>
+          </div>
+        ) : (
+          <>
+            <div className="eyebrow">Choose your drink</div>
+            {(() => {
+              // Build ordered, non-empty sections from the managed category list;
+              // drinks with no/unknown category go in a trailing "More" section.
+              const cats = config.categories || [];
+              const catIds = new Set(cats.map(c => c.id));
+              const sections = cats
+                .map(cat => ({ title: cat.name, items: config.menu.filter(d => d.categoryId === cat.id) }))
+                .filter(s => s.items.length);
+              const rest = config.menu.filter(d => !d.categoryId || !catIds.has(d.categoryId));
+              if (rest.length) sections.push({ title: sections.length ? "More" : "", items: rest });
+              const renderRow = d => (
+                <div key={d.id} className={`drow ${drinkId===d.id?"on":""}`} onClick={()=>selectDrink(d.id)}>
+                  <div className="drow-body">
+                    <div className="drow-name">{d.name}</div>
+                    {d.description&&<div className="drow-desc">{d.description}</div>}
+                  </div>
+                  <div className="drow-check">{drinkId===d.id?"✓":""}</div>
+                </div>
+              );
+              return sections.map((s,i) => (
+                <div key={s.title||i}>
+                  {s.title && <div className="menu-section-title">{s.title}</div>}
+                  <div className="dlist" style={!s.title?{marginTop:9}:undefined}>{s.items.map(renderRow)}</div>
+                </div>
+              ));
+            })()}
+          </>
+        )}
 
         {/* Render options in global order */}
         {drinkOptions.map(opt=>{
