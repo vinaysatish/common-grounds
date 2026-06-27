@@ -877,13 +877,21 @@ const BrandingCard = ({ config, upd }) => {
 // ─────────────────────────────────────────────
 // ADMIN
 // ─────────────────────────────────────────────
-const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClearOrders, onChangePin, onSignOut, themeConfig, setThemeConfig, resolvedColors }) => {
+const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClearOrders, onImport, onChangePin, onSignOut, themeConfig, setThemeConfig, resolvedColors }) => {
   const [newDrink, setNewDrink] = useState({name:"",optionIds:[],description:"",categoryId:""});
   const [newOpt, setNewOpt] = useState({label:""});
   const [newCat, setNewCat] = useState({name:""});
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDelOpt, setConfirmDelOpt] = useState(null);
   const [confirmDelCat, setConfirmDelCat] = useState(null);
+  // Backup & restore
+  const [exportQueue, setExportQueue] = useState(false);
+  const [importData, setImportData] = useState(null); // parsed file contents
+  const [importErr, setImportErr] = useState("");
+  const [importSetup, setImportSetup] = useState(true);
+  const [importQueue, setImportQueue] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const fileRef = useRef(null);
 
   const upd = (patch) => setConfig(c=>({...c,...patch}));
 
@@ -945,6 +953,42 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
     setNewDrink(d=>({...d,optionIds:ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]}));
   };
   const setNewDrinkCat = (id) => setNewDrink(d=>({...d,categoryId:d.categoryId===id?"":id}));
+
+  // ── Backup & restore ───────────────────────────
+  const doExport = () => {
+    const data = { schema:"common-grounds/backup@1", exportedAt:new Date().toISOString(), config, theme:themeConfig, isOpen };
+    if (exportQueue) { data.orders = orders; data.completed = completed; }
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const slug = (config.cafeName||"cafe").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase()||"cafe";
+    a.href = url;
+    a.download = `${slug}-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+  const onFilePicked = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const hasSetup = !!parsed.config;
+        const hasQueue = Array.isArray(parsed.orders) || Array.isArray(parsed.completed);
+        if (!hasSetup && !hasQueue) { setImportErr("This file has no café setup or queue data."); setImportData(null); return; }
+        setImportErr(""); setImportData(parsed); setImportSetup(hasSetup); setImportQueue(hasQueue);
+      } catch { setImportErr("Couldn't read that file — is it a valid backup JSON?"); setImportData(null); }
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // allow re-picking the same file
+  };
+  const doRestore = () => {
+    onImport(importData, { setup: importSetup, queue: importQueue });
+    setImportData(null); setConfirmRestore(false);
+  };
+  const importHasSetup = !!importData?.config;
+  const importHasQueue = Array.isArray(importData?.orders) || Array.isArray(importData?.completed);
 
   return (
     <div className="page">
@@ -1086,6 +1130,49 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         </div>
       </div>
 
+      {/* Backup & Restore */}
+      <div className="card">
+        <div className="eyebrow">Backup &amp; Restore</div>
+        <div style={{fontSize:12.5,opacity:.55,marginTop:6,marginBottom:14,lineHeight:1.5}}>
+          Save your café setup to a JSON file, or restore it from one. Everything stays on your device.
+        </div>
+
+        <div className="subsection">Export</div>
+        <label className="trow" style={{cursor:"pointer"}}>
+          <span className="tlabel">Include current queue <span style={{opacity:.5,fontWeight:400}}>— {orders.length} pending, {completed.length} served</span></span>
+          <button type="button" className={`tog ${exportQueue?"on":"off"}`} onClick={()=>setExportQueue(v=>!v)}/>
+        </label>
+        <div className="hint" style={{marginBottom:10}}>Always includes branding, menu, sections, options, and appearance.</div>
+        <button className="btn btn-p sm" onClick={doExport}>Export to file</button>
+
+        <hr className="divider" style={{margin:"16px 0"}}/>
+
+        <div className="subsection">Import</div>
+        <input ref={fileRef} type="file" accept="application/json,.json" onChange={onFilePicked} style={{display:"none"}}/>
+        <button className="btn btn-o sm" onClick={()=>fileRef.current?.click()}>Choose backup file…</button>
+        {importErr&&<div className="ferr" style={{marginTop:9}}>{importErr}</div>}
+        {importData&&(
+          <div style={{marginTop:12}}>
+            <div style={{fontSize:12.5,opacity:.7,marginBottom:8}}>Found in file{importData.exportedAt?` (exported ${new Date(importData.exportedAt).toLocaleString()})`:""}:</div>
+            {importHasSetup&&(
+              <label className="trow" style={{cursor:"pointer",padding:"7px 0"}}>
+                <span className="tlabel">Café setup <span style={{opacity:.5,fontWeight:400}}>— {(importData.config.menu||[]).length} drinks, {(importData.config.categories||[]).length} sections</span></span>
+                <button type="button" className={`tog ${importSetup?"on":"off"}`} onClick={()=>setImportSetup(v=>!v)}/>
+              </label>
+            )}
+            {importHasQueue&&(
+              <label className="trow" style={{cursor:"pointer",padding:"7px 0"}}>
+                <span className="tlabel">Queue <span style={{opacity:.5,fontWeight:400}}>— {(importData.orders||[]).length} pending, {(importData.completed||[]).length} served</span></span>
+                <button type="button" className={`tog ${importQueue?"on":"off"}`} onClick={()=>setImportQueue(v=>!v)}/>
+              </label>
+            )}
+            <div className="hint" style={{margin:"8px 0 12px"}}>Restoring replaces the selected data with the file's contents.</div>
+            <button className="btn btn-p sm" disabled={!importSetup&&!importQueue} onClick={()=>setConfirmRestore(true)}>Restore selected</button>
+          </div>
+        )}
+      </div>
+
+      {confirmRestore&&<Confirm title="Restore from backup?" body={`This will overwrite your ${[importSetup&&"café setup",importQueue&&"queue"].filter(Boolean).join(" and ")} with the file's contents. This cannot be undone.`} confirmLabel="Restore" danger onConfirm={doRestore} onCancel={()=>setConfirmRestore(false)}/>}
       {confirmClear&&<Confirm title="Clear all orders?" body={`This will permanently remove all pending and completed orders. This cannot be undone.`} confirmLabel="Clear orders" danger onConfirm={()=>{onClearOrders();setConfirmClear(false);}} onCancel={()=>setConfirmClear(false)}/>}
       {confirmDelOpt&&<Confirm title="Delete this option?" body="This will remove the option from all drinks that use it. This cannot be undone." confirmLabel="Delete" danger onConfirm={()=>deleteOption(confirmDelOpt)} onCancel={()=>setConfirmDelOpt(null)}/>}
       {confirmDelCat&&<Confirm title="Delete this section?" body="Drinks in this section won't be deleted — they'll just become uncategorized. This cannot be undone." confirmLabel="Delete" danger onConfirm={()=>deleteCategory(confirmDelCat)} onCancel={()=>setConfirmDelCat(null)}/>}
@@ -1628,6 +1715,23 @@ export default function App() {
     toast("Queue cleared");
   };
 
+  const handleImport=(data,{setup,queue})=>{
+    if (!data) return;
+    if (setup) {
+      if (data.config) setConfig(()=>({...DEFAULT_CONFIG,...data.config}));
+      if (data.theme) setThemeConfig(()=>({...DEFAULT_THEME,...data.theme}));
+      if (typeof data.isOpen==="boolean") setIsOpen(()=>data.isOpen);
+    }
+    if (queue) {
+      const toObj=(arr)=> (Array.isArray(arr)&&arr.length)
+        ? Object.fromEntries(arr.map((o,i)=>{ const {fbKey,...rest}=o; return [fbKey||`imp-${Date.now()}-${i}`, rest]; }))
+        : null;
+      set(ref(db,"orders"), toObj(data.orders));
+      set(ref(db,"completed"), toObj(data.completed));
+    }
+    toast("Backup restored");
+  };
+
   // ── LOADING STATE ────────────────────────────
   if (!fbReady) return (
     <div className="app"><GlobalStyles theme={theme}/>
@@ -1690,7 +1794,7 @@ export default function App() {
         </div>
         <Queue orders={orders} completed={completed} config={config} onComplete={handleDone} onRemove={handleRemove}/>
       </>}
-      {adminTab==="settings"&&<Admin config={config} setConfig={setConfig} isOpen={isOpen} setIsOpen={setIsOpen} orders={orders} completed={completed} onClearOrders={handleClear} onChangePin={()=>setPinMode("change")} onSignOut={handleSignOut} themeConfig={themeConfig} setThemeConfig={setThemeConfig} resolvedColors={theme.colors}/>}
+      {adminTab==="settings"&&<Admin config={config} setConfig={setConfig} isOpen={isOpen} setIsOpen={setIsOpen} orders={orders} completed={completed} onClearOrders={handleClear} onImport={handleImport} onChangePin={()=>setPinMode("change")} onSignOut={handleSignOut} themeConfig={themeConfig} setThemeConfig={setThemeConfig} resolvedColors={theme.colors}/>}
       <Toast msg={toastMsg}/>
     </div>
   );

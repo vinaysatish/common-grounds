@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 .env
 .emulator-data/
+
+# Local config/data exports from the admin Backup tool
+cafe-config.json
+*-backup-*.json
