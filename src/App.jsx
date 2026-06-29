@@ -293,6 +293,7 @@ const GlobalStyles = ({ theme }) => {
         .qname{font-family:${F.display};font-size:17px;font-weight:600;color:${C.headingText};margin-bottom:2px}
         .qdrink{font-size:13.5px;font-weight:500;color:${C.text};margin-bottom:2px}
         .qmods{font-size:11.5px;color:${C.textMuted};font-family:${F.detail};margin-bottom:2px}
+        .qmod-v{color:${C.text};font-weight:600}
         .qrequest{font-size:12px;color:${C.accentLight};background:${C.cardAlt};border-radius:6px;padding:5px 8px;margin-top:6px;line-height:1.4;font-style:italic}
         .qmessage{font-size:13px;color:${C.text};background:${C.cardAlt};border-radius:6px;padding:7px 10px;margin-top:8px;line-height:1.5;border-left:3px solid ${C.highlight}}
         .qfooter{padding:11px 14px;border-top:1px solid ${C.border};display:flex;gap:7px}
@@ -812,6 +813,22 @@ const AppearancePanel = ({ themeConfig, setThemeConfig, resolvedColors }) => {
 // ─────────────────────────────────────────────
 const DEFAULT_FALLBACK_EMOJI = "☕";
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB
+
+// Renders one order modifier. Supports the current shape ({label,value,description})
+// and legacy orders where a mod was just a string.
+const ModLine = ({ m, style }) => {
+  const isObj = m && typeof m === "object";
+  const label = isObj ? m.label : "";
+  const value = isObj ? (m.value ?? "") : m;
+  const desc = isObj ? m.description : "";
+  return (
+    <div className="qmods" style={style}>
+      {label && <span>{label}: </span>}
+      <span className="qmod-v">{value}</span>
+      {desc && <span> — {desc}</span>}
+    </div>
+  );
+};
 
 const LogoDisplay = ({ config, size="nav" }) => {
   const useImage = config.logoMode === "image" && config.logoImage;
@@ -1347,7 +1364,13 @@ const Guest = ({ config, isOpen, onOrder }) => {
     const clean=sanitizeName(name);
     if (!clean) { setNameErr("Please enter your name"); setTipStep(false); return; }
     setBusy(true);
-    const mods = drinkOptions.map(o=>selections[o.id]);
+    // Store each mod with its option label + choice description so the queue is
+    // self-explanatory (e.g. "Drink Size: Regular" instead of a bare "Regular").
+    const mods = drinkOptions.map(o=>{
+      const value = selections[o.id] ?? "";
+      const choice = (o.choices||[]).find(c=>(c.name||c)===value);
+      return { label:o.label, value, description:(choice&&choice.description)||"" };
+    });
     const order = {id:uid(),name:clean,photo,drink:drink.name,mods,request:request.trim().slice(0,MAX_REQUEST_LENGTH),message:message.trim().slice(0,MAX_MESSAGE_LENGTH),timestamp:Date.now()};
     if (tipChoice) order.tip = { label: tipLabel(tipChoice), description: tipChoice.description||"" };
     onOrder(order);
@@ -1563,7 +1586,7 @@ const Queue = ({ orders, completed, config, onComplete, onRemove }) => (
               {o.photo?<img src={o.photo} className="qphoto" alt={o.name}/>:<div className="qavatar">{getAvatar(o.name||"")}</div>}
               <div className="qname">{o.name}</div>
               <div className="qdrink">{o.drink}</div>
-              {mods.map((m,i)=><div key={i} className="qmods">{m}</div>)}
+              {mods.map((m,i)=><ModLine key={i} m={m}/>)}
               {o.request&&<div className="qrequest">"{o.request}"</div>}
               {o.tip&&<div className="qtip">💸 {o.tip.label} tip{o.tip.description?` — ${o.tip.description}`:""}</div>}
             </div>
@@ -1592,7 +1615,7 @@ const Queue = ({ orders, completed, config, onComplete, onRemove }) => (
                 {o.photo?<img src={o.photo} className="qphoto" alt={o.name}/>:<div className="qavatar">{getAvatar(o.name||"")}</div>}
                 <div className="qname">{o.name}</div>
                 <div className="qdrink">{o.drink}</div>
-                {mods.length>0&&<div className="qmods">{mods.join(" · ")}</div>}
+                {mods.map((m,i)=><ModLine key={i} m={m}/>)}
                 {o.request&&<div className="qrequest">"{o.request}"</div>}
               </div>
             </div>
@@ -1659,7 +1682,7 @@ const PublicQueue = ({ orders, completed, config, theme, isOpen }) => {
                     <div style={{flex:1,minWidth:0}}>
                       <div className="qname" style={{fontSize:22}}>{o.name}</div>
                       <div className="qdrink" style={{fontSize:17,fontWeight:600,marginTop:2}}>{o.drink}</div>
-                      {(o.mods||[]).length>0&&<div className="qmods" style={{fontSize:13}}>{(o.mods||[]).join(" · ")}</div>}
+                      {(o.mods||[]).map((m,i)=><ModLine key={i} m={m} style={{fontSize:13}}/>)}
                       {o.message&&<div className="qmessage">"{o.message}"</div>}
                       {o.tip&&<div className="qtip">💸 {o.tip.label} tip{o.tip.description?` — ${o.tip.description}`:""}</div>}
                     </div>
@@ -1691,7 +1714,7 @@ const PublicQueue = ({ orders, completed, config, theme, isOpen }) => {
                     <div style={{flex:1,minWidth:0}}>
                       <div className="qname" style={{fontSize:18}}>{o.name}</div>
                       <div className="qdrink" style={{fontSize:14.5,fontWeight:600,marginTop:2}}>{o.drink}</div>
-                      {(o.mods||[]).length>0&&<div className="qmods">{(o.mods||[]).join(" · ")}</div>}
+                      {(o.mods||[]).map((m,i)=><ModLine key={i} m={m}/>)}
                       {o.message&&<div className="qmessage" style={{fontSize:12}}>"{o.message}"</div>}
                     </div>
                   </div>
