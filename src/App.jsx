@@ -1658,6 +1658,8 @@ const PublicQueue = ({ orders, completed, config, theme, isOpen }) => {
                     }
                     <div style={{flex:1,minWidth:0}}>
                       <div className="qname" style={{fontSize:22}}>{o.name}</div>
+                      <div className="qdrink" style={{fontSize:17,fontWeight:600,marginTop:2}}>{o.drink}</div>
+                      {(o.mods||[]).length>0&&<div className="qmods" style={{fontSize:13}}>{(o.mods||[]).join(" · ")}</div>}
                       {o.message&&<div className="qmessage">"{o.message}"</div>}
                       {o.tip&&<div className="qtip">💸 {o.tip.label} tip{o.tip.description?` — ${o.tip.description}`:""}</div>}
                     </div>
@@ -1688,6 +1690,8 @@ const PublicQueue = ({ orders, completed, config, theme, isOpen }) => {
                     }
                     <div style={{flex:1,minWidth:0}}>
                       <div className="qname" style={{fontSize:18}}>{o.name}</div>
+                      <div className="qdrink" style={{fontSize:14.5,fontWeight:600,marginTop:2}}>{o.drink}</div>
+                      {(o.mods||[]).length>0&&<div className="qmods">{(o.mods||[]).join(" · ")}</div>}
                       {o.message&&<div className="qmessage" style={{fontSize:12}}>"{o.message}"</div>}
                     </div>
                   </div>
