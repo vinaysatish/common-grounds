@@ -28,3 +28,6 @@ dist-ssr
 # Local config/data exports from the admin Backup tool
 cafe-config.json
 *-backup-*.json
+
+# Saved daily order exports
+orders-*.json
