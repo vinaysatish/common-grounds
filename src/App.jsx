@@ -80,6 +80,14 @@ const DEFAULT_CONFIG = {
   closedMessage:"We're not open yet — check back soon.",
   accessCode:"",
   photoEnabled:true,
+  // Joke tipping screen (no real payments). Disabled by default.
+  tipsEnabled:false,
+  tipOptions:[
+    {id:"tip-15", kind:"percent", amount:15, description:"Thanks!"},
+    {id:"tip-20", kind:"percent", amount:20, description:"You're a gem"},
+    {id:"tip-25", kind:"percent", amount:25, description:"Barista's favorite"},
+    {id:"tip-cash", kind:"cash", amount:5, description:"Coffee karma"},
+  ],
   options: DEFAULT_OPTIONS,
   // Menu sections, in display order. Each drink references one via `categoryId`.
   categories: [],
@@ -258,6 +266,11 @@ const GlobalStyles = ({ theme }) => {
         .picked{display:flex;align-items:center;gap:12px;padding:12px 15px;border:2px solid ${C.highlight};border-radius:10px;background:${C.cardAlt};cursor:pointer;margin:9px 0 6px}
         .picked-body{flex:1;min-width:0}
         .picked-name{font-size:15px;font-weight:600;color:${C.text};line-height:1.3}
+        .tip-opt{display:flex;align-items:baseline;gap:11px;width:100%;text-align:left;padding:15px 17px;border:2px solid ${C.border};border-radius:11px;background:${C.cardBg};color:${C.text};cursor:pointer;transition:all .15s;font-family:inherit}
+        .tip-opt:hover{border-color:${C.highlight};background:${C.cardAlt}}
+        .tip-opt-amt{font-size:19px;font-weight:700;color:${C.accent};flex-shrink:0}
+        .tip-opt-desc{font-size:13px;opacity:.7}
+        .qtip{display:inline-block;margin-top:7px;font-size:11.5px;font-weight:600;color:${C.highlight};background:${C.cardAlt};border:1px solid ${C.border};border-radius:100px;padding:2px 10px}
         .pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
         .pill{padding:6px 15px;border:2px solid ${C.border};border-radius:100px;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .15s;background:${C.cardBg};color:${C.text};display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:34px;text-align:center}
         .pill:hover{border-color:${C.accentLight}}
@@ -421,6 +434,23 @@ const PinScreen = ({ mode, storedHash, onSuccess, onSetPin }) => {
 // ─────────────────────────────────────────────
 // OPTION ROW (admin) — add/edit/delete option types
 // ─────────────────────────────────────────────
+const TipOptionRow = ({ tip, onUpdate, onDelete }) => (
+  <div className="opt-row" style={{padding:"10px 12px"}}>
+    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:5,flexShrink:0}}>
+        <button className={`mtoggle ${tip.kind!=="cash"?"on":"off"}`} onClick={()=>onUpdate({...tip,kind:"percent"})} title="Percentage">%</button>
+        <button className={`mtoggle ${tip.kind==="cash"?"on":"off"}`} onClick={()=>onUpdate({...tip,kind:"cash"})} title="Cash amount">$</button>
+      </div>
+      <input type="number" min="0" value={tip.amount===""?"":tip.amount}
+        onChange={e=>onUpdate({...tip,amount:e.target.value===""?"":Math.max(0,Number(e.target.value))})}
+        style={{width:74,flexShrink:0}} aria-label="Amount"/>
+      <input value={tip.description||""} onChange={e=>onUpdate({...tip,description:e.target.value})}
+        placeholder="Description (e.g. You're the best)" maxLength={60} style={{flex:1,minWidth:130}}/>
+      <button className="btn btn-d sm" style={{flexShrink:0}} onClick={()=>onDelete(tip.id)}>✕</button>
+    </div>
+  </div>
+);
+
 const CategoryRow = ({ cat, onUpdate, onDelete, onMoveUp, onMoveDown }) => {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(cat.name);
@@ -958,6 +988,11 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
     upd({categories:list});
   };
 
+  const tips = config.tipOptions||[];
+  const updateTip = (u) => upd({tipOptions:tips.map(t=>t.id===u.id?u:t)});
+  const addTip = () => upd({tipOptions:[...tips,{id:uid(),kind:"percent",amount:20,description:""}]});
+  const deleteTip = (id) => upd({tipOptions:tips.filter(t=>t.id!==id)});
+
   const updateOption = (updated) => upd({options:config.options.map(o=>o.id===updated.id?updated:o)});
   const deleteOption = (id) => {
     upd({
@@ -1145,6 +1180,27 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         </div>
       </div>
 
+      {/* Tips (just for fun) */}
+      <div className="card">
+        <div className="eyebrow">Tips</div>
+        <div className="trow" style={{marginTop:7}}>
+          <div className="tlabel">Tip screen <span style={{opacity:.5,fontWeight:400}}>— a joke step, no real payments</span></div>
+          <button className={`tog ${config.tipsEnabled?"on":"off"}`} onClick={()=>upd({tipsEnabled:!config.tipsEnabled})}/>
+        </div>
+        {config.tipsEnabled && (
+          <div style={{marginTop:10}}>
+            <div style={{fontSize:12.5,opacity:.55,marginBottom:12,lineHeight:1.5}}>
+              Guests see these after placing an order. Toggle each between a percentage (%) and a cash amount ($), and add a cheeky description.
+            </div>
+            {tips.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 10px"}}>No tip options yet.</div>}
+            {tips.map(t=>(
+              <TipOptionRow key={t.id} tip={t} onUpdate={updateTip} onDelete={deleteTip}/>
+            ))}
+            <button className="btn btn-o sm" style={{marginTop:4}} onClick={addTip}>Add tip option</button>
+          </div>
+        )}
+      </div>
+
       {/* Queue */}
       <div className="card">
         <div className="eyebrow">Queue</div>
@@ -1232,6 +1288,8 @@ const Guest = ({ config, isOpen, onOrder }) => {
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tipStep, setTipStep] = useState(false); // showing the joke tip screen?
+  const [tip, setTip] = useState(null);          // chosen tip (for the confirmation)
   const [cam, setCam] = useState(false);
   const vidRef = useRef(null);
   const streamRef = useRef(null);
@@ -1280,18 +1338,31 @@ const Guest = ({ config, isOpen, onOrder }) => {
   };
   const stopCam = () => { streamRef.current?.getTracks().forEach(t=>t.stop()); setCam(false); };
 
-  const submit = useCallback(() => {
-    if (busy||!valid()) return;
-    const clean=sanitizeName(name);
-    if (!clean) { setNameErr("Please enter your name"); return; }
-    setBusy(true);
-    // Build mods in global option order
-    const mods = drinkOptions.map(o=>selections[o.id]);
-    onOrder({id:uid(),name:clean,photo,drink:drink.name,mods,request:request.trim().slice(0,MAX_REQUEST_LENGTH),message:message.trim().slice(0,MAX_MESSAGE_LENGTH),timestamp:Date.now()});
-    setDone(true); setBusy(false);
-  },[busy,name,drinkId,selections,photo,request,message,drink,drinkOptions]);
+  const tipsOn = config.tipsEnabled && (config.tipOptions||[]).length > 0;
+  const tipLabel = (t) => t.kind==="cash" ? `$${t.amount}` : `${t.amount}%`;
 
-  const reset = () => { setName("");setPhoto(null);setDrinkId(null);setPickerOpen(true);setSelections({});setRequest("");setMessage("");setDone(false);setNameErr(""); };
+  // Finalize the order, optionally attaching a (joke) tip choice.
+  const placeOrder = useCallback((tipChoice) => {
+    if (busy) return;
+    const clean=sanitizeName(name);
+    if (!clean) { setNameErr("Please enter your name"); setTipStep(false); return; }
+    setBusy(true);
+    const mods = drinkOptions.map(o=>selections[o.id]);
+    const order = {id:uid(),name:clean,photo,drink:drink.name,mods,request:request.trim().slice(0,MAX_REQUEST_LENGTH),message:message.trim().slice(0,MAX_MESSAGE_LENGTH),timestamp:Date.now()};
+    if (tipChoice) order.tip = { label: tipLabel(tipChoice), description: tipChoice.description||"" };
+    onOrder(order);
+    setTip(tipChoice ? order.tip : null);
+    setTipStep(false); setDone(true); setBusy(false);
+  },[busy,name,drinkOptions,selections,photo,drink,request,message]);
+
+  const submit = () => {
+    if (busy||!valid()) return;
+    if (!sanitizeName(name)) { setNameErr("Please enter your name"); return; }
+    if (tipsOn) { setTipStep(true); return; } // detour through the tip screen
+    placeOrder(null);
+  };
+
+  const reset = () => { setName("");setPhoto(null);setDrinkId(null);setPickerOpen(true);setSelections({});setRequest("");setMessage("");setDone(false);setTipStep(false);setTip(null);setNameErr(""); };
 
   if (!isOpen) return <div className="page"><div className="hero"><LogoDisplay config={config} size="hero"/><div className="hero-name">{config.cafeName}</div><div className="hero-tag">{config.closedMessage||"We're not open yet — check back soon."}</div></div></div>;
 
@@ -1321,7 +1392,28 @@ const Guest = ({ config, isOpen, onOrder }) => {
       </div>
     </div>
   );
-  if (done) return <div className="page"><div className="hero" style={{paddingTop:72}}><span className="hero-ico">✅</span><div className="hero-name">Order placed!</div><div className="hero-tag" style={{marginBottom:28}}>{drink?.name} coming right up.</div><button className="btn btn-p" onClick={reset}>Order another</button></div></div>;
+  if (tipStep) return (
+    <div className="page">
+      <div className="hero" style={{paddingTop:56}}>
+        <span className="hero-ico">💸</span>
+        <div className="hero-name">Add a tip?</div>
+        <div className="hero-tag">100% optional — and 100% fake. No charge, just vibes.</div>
+      </div>
+      <div className="card">
+        <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          {(config.tipOptions||[]).map(t=>(
+            <button key={t.id} type="button" className="tip-opt" onClick={()=>placeOrder(t)}>
+              <span className="tip-opt-amt">{tipLabel(t)}</span>
+              {t.description&&<span className="tip-opt-desc">{t.description}</span>}
+            </button>
+          ))}
+        </div>
+        <button className="btn btn-o full" style={{marginTop:14}} onClick={()=>placeOrder(null)}>No tip, thanks</button>
+      </div>
+    </div>
+  );
+
+  if (done) return <div className="page"><div className="hero" style={{paddingTop:72}}><span className="hero-ico">✅</span><div className="hero-name">Order placed!</div><div className="hero-tag" style={{marginBottom:tip?14:28}}>{drink?.name} coming right up.</div>{tip&&<div className="hero-tag" style={{marginBottom:28,fontWeight:600}}>Thanks for the {tip.label} tip! 😄 (we didn't actually charge you)</div>}<button className="btn btn-p" onClick={reset}>Order another</button></div></div>;
 
   return (
     <div className="page">
@@ -1473,6 +1565,7 @@ const Queue = ({ orders, completed, config, onComplete, onRemove }) => (
               <div className="qdrink">{o.drink}</div>
               {mods.map((m,i)=><div key={i} className="qmods">{m}</div>)}
               {o.request&&<div className="qrequest">"{o.request}"</div>}
+              {o.tip&&<div className="qtip">💸 {o.tip.label} tip{o.tip.description?` — ${o.tip.description}`:""}</div>}
             </div>
             <div className="qfooter">
               <button className="btn btn-s sm" style={{flex:1}} onClick={()=>onComplete(o.id)}>✓ Done</button>
@@ -1566,6 +1659,7 @@ const PublicQueue = ({ orders, completed, config, theme, isOpen }) => {
                     <div style={{flex:1,minWidth:0}}>
                       <div className="qname" style={{fontSize:22}}>{o.name}</div>
                       {o.message&&<div className="qmessage">"{o.message}"</div>}
+                      {o.tip&&<div className="qtip">💸 {o.tip.label} tip{o.tip.description?` — ${o.tip.description}`:""}</div>}
                     </div>
                   </div>
                 </div>
