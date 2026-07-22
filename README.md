@@ -103,6 +103,10 @@ The admin panel is PIN-protected and contains two tabs: **Queue** and **Settings
 
 > ⚠️ These rules are intentionally open for ease of setup. See [Security](#security) for context.
 
+#### (Advanced) Local Emulator
+
+If you would prefer to keep everything on your local machine and are comfortable with running developer tools, we offer a local Firebase Realtime Database emulator. See the [start.sh](start.sh) script and emulator-only configs ([firebase.json](firebase.json), [database.rules.json](database.rules.json), [.firebaserc](.firebaserc), and [.env.development](.env.development)).
+
 ---
 
 ### 3. Configure environment variables
@@ -124,6 +128,8 @@ The admin panel is PIN-protected and contains two tabs: **Queue** and **Settings
 ---
 
 ### 4. Deploy to Vercel
+
+> If you chose the [Firebase local emulator option](#advanced-local-emulator), you do not need to do this step.
 
 Click **Deploy**. Vercel will build and host your app automatically. Any changes you push to your forked repo will trigger a new deployment.
 
