@@ -76,10 +76,25 @@ const DEFAULT_OPTIONS = [
 
 const DEFAULT_CONFIG = {
   cafeName:"Home Café", tagline:"Crafted with care", logoEmoji:"☕",
-  logoMode:"emoji", logoImage:null,
+  logoMode:"emoji", logoImage:null, logoSize:"small",
   closedMessage:"We're not open yet — check back soon.",
   accessCode:"",
+  photoEnabled:true,
+  // Optional post-order screen shown to guests after placing an order.
+  // Disabled by default. Use for compliments, feedback, tips — anything you like.
+  postOrderEnabled: false,
+  postOrderTitle: "Leave a compliment",
+  postOrderSubtitle: "A little note for your barista.",
+  postOrderEmoji: "☕",
+  postOrderOptions: [
+    {id:"po-1", label:"Amazing ☕"},
+    {id:"po-2", label:"Made my day 🌟"},
+    {id:"po-3", label:"Best barista 🏆"},
+    {id:"po-4", label:"10/10 would order again"},
+  ],
   options: DEFAULT_OPTIONS,
+  // Menu categories, in display order. Each drink references one via `categoryId`.
+  categories: [],
   menu: [
     { id:"1", name:"Espresso",    optionIds:[],                     description:"" },
     { id:"2", name:"Cortado",     optionIds:["opt-milk"],            description:"" },
@@ -95,10 +110,61 @@ const DEFAULT_THEME = { palette:"espresso", fonts:"editorial", customColors:null
 // ─────────────────────────────────────────────
 // SECURITY
 // ─────────────────────────────────────────────
+// Pure-JS SHA-256 fallback for non-secure contexts (e.g. http:// on a LAN IP),
+// where the Web Crypto API (crypto.subtle) is unavailable. Produces the exact
+// same hex digest as crypto.subtle.digest("SHA-256", ...), so a PIN set in one
+// context verifies in the other.
+const sha256hex = (msg) => {
+  const bytes = new TextEncoder().encode(msg);
+  const K = new Uint32Array([
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
+  const l = bytes.length, bitLen = l*8, withOne = l+1;
+  const pad = (56 - (withOne % 64) + 64) % 64, total = withOne + pad + 8;
+  const buf = new Uint8Array(total);
+  buf.set(bytes); buf[l] = 0x80;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(total-4, bitLen >>> 0, false);
+  dv.setUint32(total-8, Math.floor(bitLen/0x100000000) >>> 0, false);
+  const rotr = (x,n)=>(x>>>n)|(x<<(32-n));
+  const w = new Uint32Array(64);
+  for (let i=0;i<total;i+=64){
+    for (let t=0;t<16;t++) w[t]=dv.getUint32(i+t*4,false);
+    for (let t=16;t<64;t++){
+      const s0=rotr(w[t-15],7)^rotr(w[t-15],18)^(w[t-15]>>>3);
+      const s1=rotr(w[t-2],17)^rotr(w[t-2],19)^(w[t-2]>>>10);
+      w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;
+    }
+    let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
+    for (let t=0;t<64;t++){
+      const S1=rotr(e,6)^rotr(e,11)^rotr(e,25);
+      const ch=(e&f)^(~e&g);
+      const t1=(h+S1+ch+K[t]+w[t])>>>0;
+      const S0=rotr(a,2)^rotr(a,13)^rotr(a,22);
+      const maj=(a&b)^(a&c)^(b&c);
+      const t2=(S0+maj)>>>0;
+      h=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0;
+    }
+    h0=(h0+a)>>>0;h1=(h1+b)>>>0;h2=(h2+c)>>>0;h3=(h3+d)>>>0;h4=(h4+e)>>>0;h5=(h5+f)>>>0;h6=(h6+g)>>>0;h7=(h7+h)>>>0;
+  }
+  const hex=(x)=>(x>>>0).toString(16).padStart(8,"0");
+  return hex(h0)+hex(h1)+hex(h2)+hex(h3)+hex(h4)+hex(h5)+hex(h6)+hex(h7);
+};
+
 const hashPin = async (pin) => {
-  const data = new TextEncoder().encode(pin + "cafe_salt_v1");
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  const msg = pin + "cafe_salt_v1";
+  if (globalThis.crypto?.subtle) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(msg));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  }
+  return sha256hex(msg);
 };
 const verifyPin = async (pin, hash) => (await hashPin(pin)) === hash;
 const isSessionValid = (s) => s?.token === true;
@@ -117,7 +183,9 @@ const store = {
 // UTILS
 // ─────────────────────────────────────────────
 const sanitizeName = (s) => s.replace(/[<>&"'/]/g,"").trim().slice(0,MAX_NAME_LENGTH);
-const uid = () => crypto.randomUUID().slice(0,8);
+const uid = () => (globalThis.crypto?.randomUUID
+  ? crypto.randomUUID().slice(0,8)
+  : Array.from({length:8},()=>"0123456789abcdef"[Math.floor(Math.random()*16)]).join(""));
 const fmtTime = (ts) => new Date(ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
 
 // ─────────────────────────────────────────────
@@ -188,6 +256,11 @@ const GlobalStyles = ({ theme }) => {
         .dtile.on{border-color:${C.highlight};background:${C.cardAlt}}
         .dtile-name{font-size:13.5px;font-weight:600;color:${C.text};line-height:1.3;margin-bottom:3px}
         .dtile-desc{font-size:11.5px;color:${C.textMuted};line-height:1.4;margin-top:3px}
+        .menu-section-title{font-family:${F.display};font-size:16px;font-weight:600;color:${C.headingText};margin:20px 0 9px;padding-bottom:5px;border-bottom:1.5px solid ${C.border}}
+        .po-opt{display:flex;align-items:center;justify-content:center;width:100%;text-align:center;padding:15px 17px;border:2px solid ${C.border};border-radius:11px;background:${C.cardBg};color:${C.text};cursor:pointer;transition:all .15s;font-family:inherit}
+        .po-opt:hover{border-color:${C.highlight};background:${C.cardAlt}}
+        .po-opt-label{font-size:19px;font-weight:700;color:${C.accent}}
+        .qpo{display:inline-block;margin-top:7px;font-size:11.5px;font-weight:600;color:${C.highlight};background:${C.cardAlt};border:1px solid ${C.border};border-radius:100px;padding:2px 10px}
         .pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
         .pill{padding:6px 15px;border:2px solid ${C.border};border-radius:100px;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .15s;background:${C.cardBg};color:${C.text};display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:34px;text-align:center}
         .pill:hover{border-color:${C.accentLight}}
@@ -210,13 +283,15 @@ const GlobalStyles = ({ theme }) => {
         .qname{font-family:${F.display};font-size:17px;font-weight:600;color:${C.headingText};margin-bottom:2px}
         .qdrink{font-size:13.5px;font-weight:500;color:${C.text};margin-bottom:2px}
         .qmods{font-size:11.5px;color:${C.textMuted};font-family:${F.detail};margin-bottom:2px}
+        .qmod-v{color:${C.text};font-weight:600}
         .qrequest{font-size:12px;color:${C.accentLight};background:${C.cardAlt};border-radius:6px;padding:5px 8px;margin-top:6px;line-height:1.4;font-style:italic}
         .qmessage{font-size:13px;color:${C.text};background:${C.cardAlt};border-radius:6px;padding:7px 10px;margin-top:8px;line-height:1.5;border-left:3px solid ${C.highlight}}
         .qfooter{padding:11px 14px;border-top:1px solid ${C.border};display:flex;gap:7px}
         .mrow{border:1.5px solid ${C.border};border-radius:10px;background:${C.cardBg};margin-bottom:8px;overflow:hidden}
-        .mrow-header{display:flex;align-items:flex-start;gap:9px;padding:11px 13px}
+        .mrow-header{display:flex;align-items:center;gap:9px;padding:11px 13px}
         .mrow-info{flex:1;min-width:0}
         .mrow-name{font-size:14px;font-weight:600;color:${C.text};margin-bottom:2px}
+        .mrow-cat{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:100px;font-size:10.5px;font-weight:600;letter-spacing:.03em;color:${C.highlight};background:${C.cardAlt};border:1px solid ${C.border};vertical-align:middle}
         .mrow-desc{font-size:12px;color:${C.textMuted};line-height:1.4;margin-top:2px}
         .mrow-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
         .mrow-edit{background:${C.cardAlt};border-top:1px solid ${C.border};padding:13px}
@@ -350,10 +425,77 @@ const PinScreen = ({ mode, storedHash, onSuccess, onSetPin }) => {
 // ─────────────────────────────────────────────
 // OPTION ROW (admin) — add/edit/delete option types
 // ─────────────────────────────────────────────
+const PostOrderOptionRow = ({ opt, onUpdate, onDelete }) => {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(opt.label||"");
+  const save = () => { onUpdate({...opt,label:label.trim()}); setEditing(false); };
+  const cancel = () => { setLabel(opt.label||""); setEditing(false); };
+  return (
+    <div className="mrow">
+      <div className="mrow-header">
+        {editing ? (
+          <div className="field" style={{marginBottom:0,flex:1}}>
+            <input value={label} onChange={e=>setLabel(e.target.value)}
+              placeholder="e.g. Amazing ☕" maxLength={40} autoFocus/>
+          </div>
+        ) : (
+          <div className="mrow-info">
+            <div className="mrow-name">{opt.label||<span style={{opacity:.4,fontStyle:"italic"}}>No label</span>}</div>
+          </div>
+        )}
+        <div className="mrow-actions">
+          {editing
+            ? <><button className="btn btn-o sm" onClick={cancel}>Cancel</button>
+                <button className="btn btn-p sm" disabled={!label.trim()} onClick={save}>Save</button></>
+            : <button className="btn btn-o sm" onClick={()=>setEditing(true)}>Edit</button>}
+          <button className="btn btn-d sm" onClick={()=>onDelete(opt.id)}>✕</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CategoryRow = ({ cat, onUpdate, onDelete, onMoveUp, onMoveDown }) => {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(cat.name);
+  const save = () => { if (!name.trim()) return; onUpdate({ ...cat, name: name.trim() }); setEditing(false); };
+  const cancel = () => { setName(cat.name); setEditing(false); };
+  return (
+    <div className="mrow">
+      <div className="mrow-header">
+        <div className="mrow-info">
+          {editing
+            ? <div className="field" style={{marginBottom:0,flex:1}}>
+                <input value={name} onChange={e=>setName(e.target.value)} maxLength={30} autoFocus
+                  onKeyDown={e=>{if(e.key==="Enter")save();if(e.key==="Escape")cancel();}}/>
+              </div>
+            : <div className="mrow-name">{cat.name}</div>}
+        </div>
+        <div className="mrow-actions">
+          <button className="btn btn-o sm" onClick={onMoveUp} disabled={!onMoveUp} style={{padding:"5px 8px"}}>↑</button>
+          <button className="btn btn-o sm" onClick={onMoveDown} disabled={!onMoveDown} style={{padding:"5px 8px"}}>↓</button>
+          {editing
+            ? <>
+                <button className="btn btn-o sm" onClick={cancel}>Cancel</button>
+                <button className="btn btn-p sm" disabled={!name.trim()} onClick={save}>Save</button>
+              </>
+            : <button className="btn btn-o sm" onClick={()=>setEditing(true)}>Edit</button>}
+          <button className="btn btn-d sm" onClick={()=>onDelete(cat.id)}>✕</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const normalizeChoice = (c) =>
+  typeof c === "string"
+    ? { id: c, name: c, description: "" }
+    : { id: c.id||c.name, name: c.name||"", description: c.description||"" };
+
 const OptionRow = ({ opt, onUpdate, onDelete }) => {
   const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState(opt.label);
-  const [choices, setChoices] = useState(opt.choices||[]);
+  const [label, setLabel] = useState(opt.label||"");
+  const [choices, setChoices] = useState((opt.choices||[]).map(normalizeChoice));
   const [newChoice, setNewChoice] = useState({name:"",description:""});
   const [editingChoiceId, setEditingChoiceId] = useState(null);
   const [editDraft, setEditDraft] = useState({name:"",description:""});
@@ -364,8 +506,8 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
     setOpen(false);
   };
   const cancel = () => {
-    setLabel(opt.label);
-    setChoices(opt.choices||[]);
+    setLabel(opt.label||"");
+    setChoices((opt.choices||[]).map(normalizeChoice));
     setNewChoice({name:"",description:""});
     setEditingChoiceId(null);
     setOpen(false);
@@ -472,7 +614,7 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
 // ─────────────────────────────────────────────
 // MENU ITEM ROW (admin) — inline editable, generalized options
 // ─────────────────────────────────────────────
-const MenuItemRow = ({ drink, allOptions, onUpdate, onDelete, onMoveUp, onMoveDown }) => {
+const MenuItemRow = ({ drink, allOptions, allCategories=[], onUpdate, onDelete, onMoveUp, onMoveDown }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(drink);
 
@@ -480,16 +622,18 @@ const MenuItemRow = ({ drink, allOptions, onUpdate, onDelete, onMoveUp, onMoveDo
     const ids = draft.optionIds||[];
     setDraft(d=>({...d, optionIds: ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]}));
   };
+  const setCategory = (id) => setDraft(d=>({...d, categoryId: d.categoryId===id ? "" : id}));
   const save = () => { onUpdate({...draft,name:draft.name.trim()}); setEditing(false); };
   const cancel = () => { setDraft(drink); setEditing(false); };
 
   const appliedOptions = allOptions.filter(o=>(drink.optionIds||[]).includes(o.id));
+  const appliedCategory = allCategories.find(c=>c.id===drink.categoryId);
 
   return (
     <div className="mrow">
       <div className="mrow-header">
         <div className="mrow-info">
-          <div className="mrow-name">{drink.name}</div>
+          <div className="mrow-name">{drink.name}{appliedCategory && <span className="mrow-cat">{appliedCategory.name}</span>}</div>
           {drink.description && <div className="mrow-desc">{drink.description}</div>}
           {appliedOptions.length > 0 && (
             <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
@@ -514,6 +658,16 @@ const MenuItemRow = ({ drink, allOptions, onUpdate, onDelete, onMoveUp, onMoveDo
             <label>Description (optional)</label>
             <textarea value={draft.description||""} onChange={e=>setDraft(d=>({...d,description:e.target.value}))} placeholder="e.g. Espresso, oat milk, house-made vanilla syrup — served iced" maxLength={200} rows={2}/>
           </div>
+          {allCategories.length>0 && (
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:12.5,fontWeight:500,marginBottom:6,opacity:.7}}>Category</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {allCategories.map(c=>(
+                  <button key={c.id} className={`mtoggle ${draft.categoryId===c.id?"on":"off"}`} onClick={()=>setCategory(c.id)}>{c.name}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {allOptions.length>0 && (
             <div style={{marginBottom:10}}>
               <div style={{fontSize:12.5,fontWeight:500,marginBottom:6,opacity:.7}}>Options</div>
@@ -669,6 +823,24 @@ const AppearancePanel = ({ themeConfig, setThemeConfig, resolvedColors }) => {
 const DEFAULT_FALLBACK_EMOJI = "☕";
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// Renders one order modifier. Supports the current shape ({label,value,description})
+// and legacy orders where a mod was just a string.
+// compact=true: renders only the choice value — used on the barista queue for minimal scanning.
+// compact=false (default): renders "Label: value — description" in full.
+const ModLine = ({ m, compact=false, style }) => {
+  const isObj = m && typeof m === "object";
+  const label = isObj ? m.label : "";
+  const value = isObj ? (m.value ?? "") : m;
+  const desc = isObj ? m.description : "";
+  return (
+    <div className="qmods" style={style}>
+      {!compact && label && <span>{label}: </span>}
+      <span className="qmod-v">{value}</span>
+      {!compact && desc && <span> — {desc}</span>}
+    </div>
+  );
+};
+
 const LogoDisplay = ({ config, size="nav" }) => {
   const useImage = config.logoMode === "image" && config.logoImage;
   const emoji = config.logoEmoji || DEFAULT_FALLBACK_EMOJI;
@@ -677,10 +849,14 @@ const LogoDisplay = ({ config, size="nav" }) => {
       ? <img src={config.logoImage} alt="logo" style={{height:32,maxWidth:120,objectFit:"contain",borderRadius:4}}/>
       : <span>{emoji}</span>;
   }
-  // hero
+  // hero — scaled by the configured logo size (defaults to small = original).
+  const sizeKey = config.logoSize || "small";
+  const emojiPx = { small:46, medium:66, large:88, xl:112, xxl:140 }[sizeKey] || 46;
+  const imgPx = { small:72, medium:104, large:140, xl:184, xxl:232 }[sizeKey] || 72;
+  const imgMax = { small:240, medium:300, large:360, xl:440, xxl:520 }[sizeKey] || 240;
   return useImage
-    ? <img src={config.logoImage} alt="logo" style={{height:72,maxWidth:240,objectFit:"contain",borderRadius:6,marginBottom:14,display:"block",margin:"0 auto 14px"}}/>
-    : <span className="hero-ico">{emoji}</span>;
+    ? <img src={config.logoImage} alt="logo" style={{height:imgPx,maxWidth:imgMax,objectFit:"contain",borderRadius:6,display:"block",margin:"0 auto 14px"}}/>
+    : <span className="hero-ico" style={{fontSize:emojiPx}}>{emoji}</span>;
 };
 
 // ─────────────────────────────────────────────
@@ -765,6 +941,16 @@ const BrandingCard = ({ config, upd }) => {
             {imgError && <div className="ferr" style={{marginTop:4}}>{imgError}</div>}
           </div>
         )}
+
+        <div style={{marginTop:14}}>
+          <div style={{fontSize:12.5,fontWeight:500,marginBottom:8,opacity:.7}}>Logo size</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {[["small","Small"],["medium","Medium"],["large","Large"],["xl","XL"],["xxl","XXL"]].map(([s,lbl])=>(
+              <button key={s} className={`btn sm ${(config.logoSize||"small")===s?"btn-p":"btn-o"}`} onClick={()=>upd({logoSize:s})}>{lbl}</button>
+            ))}
+          </div>
+          <div className="hint" style={{marginTop:6}}>Set the size of the logo on the order and queue screens.</div>
+        </div>
       </div>
     </div>
   );
@@ -773,11 +959,21 @@ const BrandingCard = ({ config, upd }) => {
 // ─────────────────────────────────────────────
 // ADMIN
 // ─────────────────────────────────────────────
-const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClearOrders, onChangePin, onSignOut, themeConfig, setThemeConfig, resolvedColors }) => {
-  const [newDrink, setNewDrink] = useState({name:"",optionIds:[],description:""});
+const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClearOrders, onImport, onChangePin, onSignOut, themeConfig, setThemeConfig, resolvedColors }) => {
+  const [newDrink, setNewDrink] = useState({name:"",optionIds:[],description:"",categoryId:""});
   const [newOpt, setNewOpt] = useState({label:""});
+  const [newCat, setNewCat] = useState({name:""});
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDelOpt, setConfirmDelOpt] = useState(null);
+  const [confirmDelCat, setConfirmDelCat] = useState(null);
+  // Backup & restore
+  const [exportQueue, setExportQueue] = useState(false);
+  const [importData, setImportData] = useState(null); // parsed file contents
+  const [importErr, setImportErr] = useState("");
+  const [importSetup, setImportSetup] = useState(true);
+  const [importQueue, setImportQueue] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const fileRef = useRef(null);
 
   const upd = (patch) => setConfig(c=>({...c,...patch}));
 
@@ -794,8 +990,36 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
   const addDrink = () => {
     if (!newDrink.name.trim()) return;
     upd({menu:[...config.menu,{...newDrink,id:uid(),name:newDrink.name.trim()}]});
-    setNewDrink({name:"",optionIds:[],description:""});
+    setNewDrink({name:"",optionIds:[],description:"",categoryId:""});
   };
+
+  const cats = config.categories||[];
+  const updateCategory = (updated) => upd({categories:cats.map(c=>c.id===updated.id?updated:c)});
+  const deleteCategory = (id) => {
+    upd({
+      categories: cats.filter(c=>c.id!==id),
+      menu: config.menu.map(d=>d.categoryId===id?{...d,categoryId:""}:d),
+    });
+    setConfirmDelCat(null);
+  };
+  const addCategory = () => {
+    if (!newCat.name.trim()) return;
+    upd({categories:[...cats,{id:uid(),name:newCat.name.trim()}]});
+    setNewCat({name:""});
+  };
+  const moveCategory = (id, dir) => {
+    const list = [...cats];
+    const idx = list.findIndex(c=>c.id===id);
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= list.length) return;
+    [list[idx], list[newIdx]] = [list[newIdx], list[idx]];
+    upd({categories:list});
+  };
+
+  const postOrderOpts = config.postOrderOptions||[];
+  const updatePostOrderOpt = (u) => upd({postOrderOptions:postOrderOpts.map(o=>o.id===u.id?u:o)});
+  const addPostOrderOpt = () => upd({postOrderOptions:[...postOrderOpts,{id:uid(),label:""}]});
+  const deletePostOrderOpt = (id) => upd({postOrderOptions:postOrderOpts.filter(o=>o.id!==id)});
 
   const updateOption = (updated) => upd({options:config.options.map(o=>o.id===updated.id?updated:o)});
   const deleteOption = (id) => {
@@ -815,6 +1039,43 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
     const ids=newDrink.optionIds||[];
     setNewDrink(d=>({...d,optionIds:ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]}));
   };
+  const setNewDrinkCat = (id) => setNewDrink(d=>({...d,categoryId:d.categoryId===id?"":id}));
+
+  // ── Backup & restore ───────────────────────────
+  const doExport = () => {
+    const data = { schema:"common-grounds/backup@1", exportedAt:new Date().toISOString(), config, theme:themeConfig, isOpen };
+    if (exportQueue) { data.orders = orders; data.completed = completed; }
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const slug = (config.cafeName||"cafe").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase()||"cafe";
+    a.href = url;
+    a.download = `${slug}-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+  const onFilePicked = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const hasSetup = !!parsed.config;
+        const hasQueue = Array.isArray(parsed.orders) || Array.isArray(parsed.completed);
+        if (!hasSetup && !hasQueue) { setImportErr("This file has no café setup or queue data."); setImportData(null); return; }
+        setImportErr(""); setImportData(parsed); setImportSetup(hasSetup); setImportQueue(hasQueue);
+      } catch { setImportErr("Couldn't read that file — is it a valid backup JSON?"); setImportData(null); }
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // allow re-picking the same file
+  };
+  const doRestore = () => {
+    onImport(importData, { setup: importSetup, queue: importQueue });
+    setImportData(null); setConfirmRestore(false);
+  };
+  const importHasSetup = !!importData?.config;
+  const importHasQueue = Array.isArray(importData?.orders) || Array.isArray(importData?.completed);
 
   return (
     <div className="page">
@@ -854,13 +1115,37 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         <button className="btn btn-p sm" disabled={!newOpt.label.trim()} onClick={addOption}>Add Option</button>
       </div>
 
+      {/* Menu Categories */}
+      <div className="card">
+        <div className="eyebrow">Menu Categories</div>
+        <div style={{fontSize:12.5,opacity:.55,marginTop:6,marginBottom:14,lineHeight:1.5}}>
+          Group drinks into categories on the order page. Use ↑↓ to reorder. Assign each drink to a category when you edit it below.
+        </div>
+        {cats.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 12px"}}>No categories yet. Add one below, then assign drinks to it.</div>}
+        {cats.map((cat,i)=>(
+          <CategoryRow key={cat.id} cat={cat} onUpdate={updateCategory} onDelete={(id)=>setConfirmDelCat(id)}
+            onMoveUp={i>0 ? ()=>moveCategory(cat.id,-1) : null}
+            onMoveDown={i<cats.length-1 ? ()=>moveCategory(cat.id,1) : null}
+          />
+        ))}
+        <hr className="divider" style={{margin:"14px 0"}}/>
+        <div className="subsection">Add Category</div>
+        <div style={{marginTop:9,marginBottom:10}}>
+          <div className="field" style={{marginBottom:10}}>
+            <label>Name</label>
+            <input value={newCat.name} onChange={e=>setNewCat({name:e.target.value})} placeholder="e.g. Coffee" maxLength={30} onKeyDown={e=>e.key==="Enter"&&addCategory()}/>
+          </div>
+        </div>
+        <button className="btn btn-p sm" disabled={!newCat.name.trim()} onClick={addCategory}>Add Category</button>
+      </div>
+
       {/* Menu */}
       <div className="card">
         <div className="eyebrow">Menu</div>
         <div style={{marginTop:11,marginBottom:14}}>
           {config.menu.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"13px 0"}}>No drinks yet.</div>}
           {config.menu.map((d,i)=>(
-            <MenuItemRow key={d.id} drink={d} allOptions={config.options||[]} onUpdate={updateDrink} onDelete={deleteDrink}
+            <MenuItemRow key={d.id} drink={d} allOptions={config.options||[]} allCategories={cats} onUpdate={updateDrink} onDelete={deleteDrink}
               onMoveUp={i>0 ? ()=>moveDrink(d.id,-1) : null}
               onMoveDown={i<config.menu.length-1 ? ()=>moveDrink(d.id,1) : null}
             />
@@ -877,6 +1162,16 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
             <label>Description (optional)</label>
             <textarea value={newDrink.description} onChange={e=>setNewDrink(d=>({...d,description:e.target.value}))} placeholder="e.g. Espresso, oat milk, house-made vanilla syrup — served iced" maxLength={200} rows={2}/>
           </div>
+          {cats.length>0&&(
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12.5,fontWeight:500,marginBottom:6,opacity:.7}}>Category</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {cats.map(c=>(
+                  <button key={c.id} className={`mtoggle ${newDrink.categoryId===c.id?"on":"off"}`} onClick={()=>setNewDrinkCat(c.id)}>{c.name}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {(config.options||[]).length>0&&(
             <div style={{marginBottom:12}}>
               <div style={{fontSize:12.5,fontWeight:500,marginBottom:6,opacity:.7}}>Options</div>
@@ -898,6 +1193,10 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
           <div className="tlabel"><span className={`dot ${isOpen?"dot-on":"dot-off"}`}/>{isOpen?"Open — accepting orders":"Closed"}</div>
           <button className={`tog ${isOpen?"on":"off"}`} onClick={()=>setIsOpen(v=>!v)}/>
         </div>
+        <div className="trow">
+          <div className="tlabel">Photo capture <span style={{opacity:.5,fontWeight:400}}>— let guests add a photo</span></div>
+          <button className={`tog ${config.photoEnabled!==false?"on":"off"}`} onClick={()=>upd({photoEnabled:config.photoEnabled===false})}/>
+        </div>
         <div className="field" style={{marginBottom:8,marginTop:4}}>
           <label>Closed message</label>
           <input value={config.closedMessage||""} onChange={e=>upd({closedMessage:e.target.value})} placeholder="We're not open yet — check back soon." maxLength={120}/>
@@ -909,6 +1208,43 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         </div>
       </div>
 
+      {/* Post-Order Screen */}
+      <div className="card">
+        <div className="eyebrow">Post-Order Screen</div>
+        <div className="trow" style={{marginTop:7}}>
+          <div className="tlabel">Enabled <span style={{opacity:.5,fontWeight:400}}>— shown after guests place an order</span></div>
+          <button className={`tog ${config.postOrderEnabled?"on":"off"}`} onClick={()=>upd({postOrderEnabled:!config.postOrderEnabled})}/>
+        </div>
+        {config.postOrderEnabled && (
+          <div style={{marginTop:12}}>
+            <div style={{fontSize:12.5,opacity:.55,marginBottom:14,lineHeight:1.5}}>
+              An optional screen guests see after placing their order. Use it for compliments, feedback, tips, etc.
+            </div>
+            <div className="f2" style={{marginBottom:10}}>
+              <div className="field" style={{marginBottom:0}}>
+                <label>Emoji</label>
+                <input value={config.postOrderEmoji||""} onChange={e=>upd({postOrderEmoji:e.target.value})} maxLength={2} style={{width:64,fontSize:24,textAlign:"center",padding:"6px 8px"}}/>
+              </div>
+              <div className="field" style={{marginBottom:0}}>
+                <label>Screen title</label>
+                <input value={config.postOrderTitle||""} onChange={e=>upd({postOrderTitle:e.target.value})} maxLength={60} placeholder="e.g. Leave a compliment"/>
+              </div>
+            </div>
+            <div className="field" style={{marginBottom:14}}>
+              <label>Subtitle</label>
+              <input value={config.postOrderSubtitle||""} onChange={e=>upd({postOrderSubtitle:e.target.value})} maxLength={120} placeholder="e.g. A little note for your barista."/>
+            </div>
+            <div className="subsection">Options</div>
+            <div className="hint" style={{marginBottom:10}}>Each option is shown large on the guest screen.</div>
+            {postOrderOpts.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 10px"}}>No options yet.</div>}
+            {postOrderOpts.map(o=>(
+              <PostOrderOptionRow key={o.id} opt={o} onUpdate={updatePostOrderOpt} onDelete={deletePostOrderOpt}/>
+            ))}
+            <button className="btn btn-o sm" style={{marginTop:4}} onClick={addPostOrderOpt}>Add option</button>
+          </div>
+        )}
+      </div>
+
       {/* Queue */}
       <div className="card">
         <div className="eyebrow">Queue</div>
@@ -918,8 +1254,52 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         </div>
       </div>
 
+      {/* Backup & Restore */}
+      <div className="card">
+        <div className="eyebrow">Backup &amp; Restore</div>
+        <div style={{fontSize:12.5,opacity:.55,marginTop:6,marginBottom:14,lineHeight:1.5}}>
+          Save your café setup to a JSON file, or restore it from one. Everything stays on your device.
+        </div>
+
+        <div className="subsection">Export</div>
+        <label className="trow" style={{cursor:"pointer"}}>
+          <span className="tlabel">Include current queue <span style={{opacity:.5,fontWeight:400}}>— {orders.length} pending, {completed.length} served</span></span>
+          <button type="button" className={`tog ${exportQueue?"on":"off"}`} onClick={()=>setExportQueue(v=>!v)}/>
+        </label>
+        <div className="hint" style={{marginBottom:10}}>Always includes branding, menu, categories, options, and appearance.</div>
+        <button className="btn btn-p sm" onClick={doExport}>Export to file</button>
+
+        <hr className="divider" style={{margin:"16px 0"}}/>
+
+        <div className="subsection">Import</div>
+        <input ref={fileRef} type="file" accept="application/json,.json" onChange={onFilePicked} style={{display:"none"}}/>
+        <button className="btn btn-o sm" onClick={()=>fileRef.current?.click()}>Choose backup file…</button>
+        {importErr&&<div className="ferr" style={{marginTop:9}}>{importErr}</div>}
+        {importData&&(
+          <div style={{marginTop:12}}>
+            <div style={{fontSize:12.5,opacity:.7,marginBottom:8}}>Found in file{importData.exportedAt?` (exported ${new Date(importData.exportedAt).toLocaleString()})`:""}:</div>
+            {importHasSetup&&(
+              <label className="trow" style={{cursor:"pointer",padding:"7px 0"}}>
+                <span className="tlabel">Café setup <span style={{opacity:.5,fontWeight:400}}>— {(importData.config.menu||[]).length} drinks, {(importData.config.categories||[]).length} categories</span></span>
+                <button type="button" className={`tog ${importSetup?"on":"off"}`} onClick={()=>setImportSetup(v=>!v)}/>
+              </label>
+            )}
+            {importHasQueue&&(
+              <label className="trow" style={{cursor:"pointer",padding:"7px 0"}}>
+                <span className="tlabel">Queue <span style={{opacity:.5,fontWeight:400}}>— {(importData.orders||[]).length} pending, {(importData.completed||[]).length} served</span></span>
+                <button type="button" className={`tog ${importQueue?"on":"off"}`} onClick={()=>setImportQueue(v=>!v)}/>
+              </label>
+            )}
+            <div className="hint" style={{margin:"8px 0 12px"}}>Restoring replaces the selected data with the file's contents.</div>
+            <button className="btn btn-p sm" disabled={!importSetup&&!importQueue} onClick={()=>setConfirmRestore(true)}>Restore selected</button>
+          </div>
+        )}
+      </div>
+
+      {confirmRestore&&<Confirm title="Restore from backup?" body={`This will overwrite your ${[importSetup&&"café setup",importQueue&&"queue"].filter(Boolean).join(" and ")} with the file's contents. This cannot be undone.`} confirmLabel="Restore" danger onConfirm={doRestore} onCancel={()=>setConfirmRestore(false)}/>}
       {confirmClear&&<Confirm title="Clear all orders?" body={`This will permanently remove all pending and completed orders. This cannot be undone.`} confirmLabel="Clear orders" danger onConfirm={()=>{onClearOrders();setConfirmClear(false);}} onCancel={()=>setConfirmClear(false)}/>}
       {confirmDelOpt&&<Confirm title="Delete this option?" body="This will remove the option from all drinks that use it. This cannot be undone." confirmLabel="Delete" danger onConfirm={()=>deleteOption(confirmDelOpt)} onCancel={()=>setConfirmDelOpt(null)}/>}
+      {confirmDelCat&&<Confirm title="Delete this category?" body="Drinks in this category won't be deleted — they'll just become uncategorized. This cannot be undone." confirmLabel="Delete" danger onConfirm={()=>deleteCategory(confirmDelCat)} onCancel={()=>setConfirmDelCat(null)}/>}
     </div>
   );
 };
@@ -946,11 +1326,14 @@ const Guest = ({ config, isOpen, onOrder }) => {
   const [nameErr, setNameErr] = useState("");
   const [photo, setPhoto] = useState(null);
   const [drinkId, setDrinkId] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(true); // drink list expanded?
   const [selections, setSelections] = useState({}); // { optionId: choiceValue }
   const [request, setRequest] = useState("");
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [postOrderStep, setPostOrderStep] = useState(false); // showing the post-order screen?
+  const [postOrderChoice, setPostOrderChoice] = useState(null); // chosen post-order option
   const [cam, setCam] = useState(false);
   const vidRef = useRef(null);
   const streamRef = useRef(null);
@@ -959,7 +1342,14 @@ const Guest = ({ config, isOpen, onOrder }) => {
   const drinkOptions = drink ? (config.options||[]).filter(o=>(drink.optionIds||[]).includes(o.id)) : [];
   const valid = () => !!sanitizeName(name) && !!drinkId && drinkOptions.every(o=>selections[o.id]);
 
-  const selectDrink = (id) => { setDrinkId(id); setSelections({}); };
+  const selectDrink = (id) => {
+    setDrinkId(id);
+    // Pre-select each option's default choice (or its first choice as a fallback).
+    const d = config.menu.find(x=>x.id===id);
+    const opts = d ? (config.options||[]).filter(o=>(d.optionIds||[]).includes(o.id)) : [];
+    setSelections({});
+    setPickerOpen(false); // collapse the list to bring options into focus
+  };
 
   const openCam = async () => {
     setCam(true);
@@ -985,18 +1375,36 @@ const Guest = ({ config, isOpen, onOrder }) => {
   };
   const stopCam = () => { streamRef.current?.getTracks().forEach(t=>t.stop()); setCam(false); };
 
-  const submit = useCallback(() => {
-    if (busy||!valid()) return;
-    const clean=sanitizeName(name);
-    if (!clean) { setNameErr("Please enter your name"); return; }
-    setBusy(true);
-    // Build mods in global option order
-    const mods = drinkOptions.map(o=>selections[o.id]);
-    onOrder({id:uid(),name:clean,photo,drink:drink.name,mods,request:request.trim().slice(0,MAX_REQUEST_LENGTH),message:message.trim().slice(0,MAX_MESSAGE_LENGTH),timestamp:Date.now()});
-    setDone(true); setBusy(false);
-  },[busy,name,drinkId,selections,photo,request,message,drink,drinkOptions]);
+  const postOrderOn = config.postOrderEnabled && (config.postOrderOptions||[]).length > 0;
 
-  const reset = () => { setName("");setPhoto(null);setDrinkId(null);setSelections({});setRequest("");setMessage("");setDone(false);setNameErr(""); };
+  // Finalize the order, optionally attaching a post-order screen choice.
+  const placeOrder = useCallback((postOrderChoice) => {
+    if (busy) return;
+    const clean=sanitizeName(name);
+    if (!clean) { setNameErr("Please enter your name"); setPostOrderStep(false); return; }
+    setBusy(true);
+    // Store each mod with its option label + choice description so the queue is
+    // self-explanatory (e.g. "Drink Size: Regular" instead of a bare "Regular").
+    const mods = drinkOptions.map(o=>{
+      const value = selections[o.id] ?? "";
+      const choice = (o.choices||[]).find(c=>(c.name||c)===value);
+      return { label:o.label, value, description:(choice&&choice.description)||"" };
+    });
+    const order = {id:uid(),name:clean,photo,drink:drink.name,mods,request:request.trim().slice(0,MAX_REQUEST_LENGTH),message:message.trim().slice(0,MAX_MESSAGE_LENGTH),timestamp:Date.now()};
+    if (postOrderChoice) order.postOrder = { label: postOrderChoice.label||"" };
+    onOrder(order);
+    setPostOrderChoice(postOrderChoice ? order.postOrder : null);
+    setPostOrderStep(false); setDone(true); setBusy(false);
+  },[busy,name,drinkOptions,selections,photo,drink,request,message]);
+
+  const submit = () => {
+    if (busy||!valid()) return;
+    if (!sanitizeName(name)) { setNameErr("Please enter your name"); return; }
+    if (postOrderOn) { setPostOrderStep(true); return; }
+    placeOrder(null);
+  };
+
+  const reset = () => { setName("");setPhoto(null);setDrinkId(null);setPickerOpen(true);setSelections({});setRequest("");setMessage("");setDone(false);setPostOrderStep(false);setPostOrderChoice(null);setNameErr(""); };
 
   if (!isOpen) return <div className="page"><div className="hero"><LogoDisplay config={config} size="hero"/><div className="hero-name">{config.cafeName}</div><div className="hero-tag">{config.closedMessage||"We're not open yet — check back soon."}</div></div></div>;
 
@@ -1026,6 +1434,26 @@ const Guest = ({ config, isOpen, onOrder }) => {
       </div>
     </div>
   );
+  if (postOrderStep) return (
+    <div className="page">
+      <div className="hero" style={{paddingTop:56}}>
+        <span className="hero-ico">{config.postOrderEmoji||"🌟"}</span>
+        <div className="hero-name">{config.postOrderTitle||"Leave a compliment"}</div>
+        <div className="hero-tag">{config.postOrderSubtitle||"A little note for your barista."}</div>
+      </div>
+      <div className="card">
+        <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          {(config.postOrderOptions||[]).map(o=>(
+            <button key={o.id} type="button" className="po-opt" onClick={()=>placeOrder(o)}>
+              <span className="po-opt-label">{o.label}</span>
+            </button>
+          ))}
+        </div>
+        <button className="btn btn-o full" style={{marginTop:14}} onClick={()=>placeOrder(null)}>No thanks</button>
+      </div>
+    </div>
+  );
+
   if (done) return <div className="page"><div className="hero" style={{paddingTop:72}}><span className="hero-ico">✅</span><div className="hero-name">Order placed!</div><div className="hero-tag" style={{marginBottom:28}}>{drink?.name} coming right up.</div><button className="btn btn-p" onClick={reset}>Order another</button></div></div>;
 
   return (
@@ -1037,17 +1465,17 @@ const Guest = ({ config, isOpen, onOrder }) => {
       </div>
       <div className="card">
         <div className="field">
-          <label>Your first name</label>
+          <label>Your name</label>
           <input value={name} onChange={e=>{setName(e.target.value);if(nameErr)setNameErr("");}} onBlur={()=>!sanitizeName(name)&&name&&setNameErr("Please enter a valid name")} maxLength={MAX_NAME_LENGTH} className={nameErr?"err":""}/>
           {nameErr&&<div className="ferr">{nameErr}</div>}
         </div>
 
-        {!cam&&(
+        {config.photoEnabled!==false && !cam && (
           <div className="photo-zone" onClick={openCam}>
             {photo?<><img src={photo} className="photo-thumb" alt="you"/><div style={{fontSize:12.5,opacity:.6}}>Tap to retake</div></>:<><div style={{fontSize:30,marginBottom:7}}>📷</div><div style={{fontSize:13.5,opacity:.6}}>Add a photo <span style={{opacity:.8}}>(optional)</span></div></>}
           </div>
         )}
-        {cam&&(
+        {config.photoEnabled!==false && cam && (
           <div style={{marginBottom:18,textAlign:"center"}}>
             <video ref={vidRef} autoPlay playsInline style={{width:"100%",borderRadius:9,marginBottom:9}}/>
             <div style={{display:"flex",gap:7,justifyContent:"center"}}>
@@ -1057,15 +1485,41 @@ const Guest = ({ config, isOpen, onOrder }) => {
           </div>
         )}
 
-        <div className="eyebrow">Choose your drink</div>
-        <div className="dgrid" style={{marginTop:9}}>
-          {config.menu.map(d=>(
-            <div key={d.id} className={`dtile ${drinkId===d.id?"on":""}`} onClick={()=>selectDrink(d.id)}>
-              <div className="dtile-name">{d.name}</div>
-              {d.description&&<div className="dtile-desc">{d.description}</div>}
+        {drink && !pickerOpen ? (
+          <div className="dtile on" style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:18,padding:"11px 14px"}}>
+            <div>
+              <div className="eyebrow" style={{marginBottom:2,textAlign:"left"}}>Your drink</div>
+              <div className="dtile-name" style={{textAlign:"left"}}>{drink.name}</div>
+              {drink.description&&<div className="dtile-desc" style={{textAlign:"left"}}>{drink.description}</div>}
             </div>
-          ))}
-        </div>
+            <button type="button" className="btn btn-o sm" onClick={()=>{setDrinkId(null);setSelections({});setPickerOpen(true);}}>Change</button>
+          </div>
+        ) : (
+          <>
+            <div className="eyebrow">Choose your drink</div>
+            {(() => {
+              const cats = config.categories || [];
+              const catIds = new Set(cats.map(c => c.id));
+              const sections = cats
+                .map(cat => ({ title: cat.name, items: config.menu.filter(d => d.categoryId === cat.id) }))
+                .filter(s => s.items.length);
+              const rest = config.menu.filter(d => !d.categoryId || !catIds.has(d.categoryId));
+              if (rest.length) sections.push({ title: sections.length ? "More" : "", items: rest });
+              const renderTile = d => (
+                <div key={d.id} className={`dtile ${drinkId===d.id?"on":""}`} onClick={()=>selectDrink(d.id)}>
+                  <div className="dtile-name">{d.name}</div>
+                  {d.description&&<div className="dtile-desc">{d.description}</div>}
+                </div>
+              );
+              return sections.map((s,i) => (
+                <div key={s.title||i}>
+                  {s.title && <div className="menu-section-title">{s.title}</div>}
+                  <div className="dgrid" style={!s.title?{marginTop:9}:undefined}>{s.items.map(renderTile)}</div>
+                </div>
+              ));
+            })()}
+          </>
+        )}
 
         {/* Render options in global order */}
         {drinkOptions.map(opt=>{
@@ -1145,8 +1599,9 @@ const Queue = ({ orders, completed, config, onComplete, onRemove }) => (
               {o.photo?<img src={o.photo} className="qphoto" alt={o.name}/>:<div className="qavatar">{getAvatar(o.name||"")}</div>}
               <div className="qname">{o.name}</div>
               <div className="qdrink">{o.drink}</div>
-              {mods.map((m,i)=><div key={i} className="qmods">{m}</div>)}
-              {o.request&&<div className="qrequest">"{o.request}"</div>}
+              {mods.map((m,i)=><ModLine key={i} m={m} compact/>)}
+              {o.request&&<div className="qrequest">{o.request}</div>}
+              {o.postOrder&&<div className="qpo">{o.postOrder.label}</div>}
             </div>
             <div className="qfooter">
               <button className="btn btn-s sm" style={{flex:1}} onClick={()=>onComplete(o.id)}>✓ Done</button>
@@ -1173,8 +1628,8 @@ const Queue = ({ orders, completed, config, onComplete, onRemove }) => (
                 {o.photo?<img src={o.photo} className="qphoto" alt={o.name}/>:<div className="qavatar">{getAvatar(o.name||"")}</div>}
                 <div className="qname">{o.name}</div>
                 <div className="qdrink">{o.drink}</div>
-                {mods.length>0&&<div className="qmods">{mods.join(" · ")}</div>}
-                {o.request&&<div className="qrequest">"{o.request}"</div>}
+                {mods.map((m,i)=><ModLine key={i} m={m} compact/>)}
+                {o.request&&<div className="qrequest">{o.request}</div>}
               </div>
             </div>
           )})}
@@ -1441,6 +1896,23 @@ export default function App() {
     toast("Queue cleared");
   };
 
+  const handleImport=(data,{setup,queue})=>{
+    if (!data) return;
+    if (setup) {
+      if (data.config) setConfig(()=>({...DEFAULT_CONFIG,...data.config}));
+      if (data.theme) setThemeConfig(()=>({...DEFAULT_THEME,...data.theme}));
+      if (typeof data.isOpen==="boolean") setIsOpen(()=>data.isOpen);
+    }
+    if (queue) {
+      const toObj=(arr)=> (Array.isArray(arr)&&arr.length)
+        ? Object.fromEntries(arr.map((o,i)=>{ const {fbKey,...rest}=o; return [fbKey||`imp-${Date.now()}-${i}-${Math.random().toString(36).slice(2,6)}`, rest]; }))
+        : null;
+      set(ref(db,"orders"), toObj(data.orders));
+      set(ref(db,"completed"), toObj(data.completed));
+    }
+    toast("Backup restored");
+  };
+
   // ── LOADING STATE ────────────────────────────
   if (!fbReady) return (
     <div className="app"><GlobalStyles theme={theme}/>
@@ -1503,7 +1975,7 @@ export default function App() {
         </div>
         <Queue orders={orders} completed={completed} config={config} onComplete={handleDone} onRemove={handleRemove}/>
       </>}
-      {adminTab==="settings"&&<Admin config={config} setConfig={setConfig} isOpen={isOpen} setIsOpen={setIsOpen} orders={orders} completed={completed} onClearOrders={handleClear} onChangePin={()=>setPinMode("change")} onSignOut={handleSignOut} themeConfig={themeConfig} setThemeConfig={setThemeConfig} resolvedColors={theme.colors}/>}
+      {adminTab==="settings"&&<Admin config={config} setConfig={setConfig} isOpen={isOpen} setIsOpen={setIsOpen} orders={orders} completed={completed} onClearOrders={handleClear} onImport={handleImport} onChangePin={()=>setPinMode("change")} onSignOut={handleSignOut} themeConfig={themeConfig} setThemeConfig={setThemeConfig} resolvedColors={theme.colors}/>}
       <Toast msg={toastMsg}/>
     </div>
   );
