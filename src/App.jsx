@@ -80,16 +80,20 @@ const DEFAULT_CONFIG = {
   closedMessage:"We're not open yet — check back soon.",
   accessCode:"",
   photoEnabled:true,
-  // Joke tipping screen (no real payments). Disabled by default.
-  tipsEnabled:false,
-  tipOptions:[
-    {id:"tip-15", kind:"percent", amount:15, description:"Thanks!"},
-    {id:"tip-20", kind:"percent", amount:20, description:"You're a gem"},
-    {id:"tip-25", kind:"percent", amount:25, description:"Barista's favorite"},
-    {id:"tip-cash", kind:"cash", amount:5, description:"Coffee karma"},
+  // Optional post-order screen shown to guests after placing an order.
+  // Disabled by default. Use for compliments, feedback, tips — anything you like.
+  postOrderEnabled: false,
+  postOrderTitle: "Leave a compliment",
+  postOrderSubtitle: "A little note for your barista.",
+  postOrderEmoji: "☕",
+  postOrderOptions: [
+    {id:"po-1", label:"Amazing ☕"},
+    {id:"po-2", label:"Made my day 🌟"},
+    {id:"po-3", label:"Best barista 🏆"},
+    {id:"po-4", label:"10/10 would order again"},
   ],
   options: DEFAULT_OPTIONS,
-  // Menu sections, in display order. Each drink references one via `categoryId`.
+  // Menu categories, in display order. Each drink references one via `categoryId`.
   categories: [],
   menu: [
     { id:"1", name:"Espresso",    optionIds:[],                     description:"" },
@@ -253,24 +257,10 @@ const GlobalStyles = ({ theme }) => {
         .dtile-name{font-size:13.5px;font-weight:600;color:${C.text};line-height:1.3;margin-bottom:3px}
         .dtile-desc{font-size:11.5px;color:${C.textMuted};line-height:1.4;margin-top:3px}
         .menu-section-title{font-family:${F.display};font-size:16px;font-weight:600;color:${C.headingText};margin:20px 0 9px;padding-bottom:5px;border-bottom:1.5px solid ${C.border}}
-        .dlist{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
-        .drow{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 15px;border:2px solid ${C.border};border-radius:10px;cursor:pointer;transition:all .15s;background:${C.cardBg}}
-        .drow:hover{border-color:${C.accentLight};background:${C.cardAlt}}
-        .drow.on{border-color:${C.highlight};background:${C.cardAlt}}
-        .drow-body{flex:1;min-width:0}
-        .drow-name{font-size:14.5px;font-weight:600;color:${C.text};line-height:1.3}
-        .drow-desc{font-size:12px;color:${C.textMuted};line-height:1.4;margin-top:3px}
-        .drow-check{flex-shrink:0;width:22px;height:22px;border-radius:50%;border:2px solid ${C.border};display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;transition:all .15s}
-        .drow.on .drow-check{background:${C.highlight};border-color:${C.highlight}}
-        .drow-check.on{background:${C.highlight};border-color:${C.highlight}}
-        .picked{display:flex;align-items:center;gap:12px;padding:12px 15px;border:2px solid ${C.highlight};border-radius:10px;background:${C.cardAlt};cursor:pointer;margin:9px 0 6px}
-        .picked-body{flex:1;min-width:0}
-        .picked-name{font-size:15px;font-weight:600;color:${C.text};line-height:1.3}
-        .tip-opt{display:flex;align-items:baseline;gap:11px;width:100%;text-align:left;padding:15px 17px;border:2px solid ${C.border};border-radius:11px;background:${C.cardBg};color:${C.text};cursor:pointer;transition:all .15s;font-family:inherit}
-        .tip-opt:hover{border-color:${C.highlight};background:${C.cardAlt}}
-        .tip-opt-amt{font-size:19px;font-weight:700;color:${C.accent};flex-shrink:0}
-        .tip-opt-desc{font-size:13px;opacity:.7}
-        .qtip{display:inline-block;margin-top:7px;font-size:11.5px;font-weight:600;color:${C.highlight};background:${C.cardAlt};border:1px solid ${C.border};border-radius:100px;padding:2px 10px}
+        .po-opt{display:flex;align-items:center;justify-content:center;width:100%;text-align:center;padding:15px 17px;border:2px solid ${C.border};border-radius:11px;background:${C.cardBg};color:${C.text};cursor:pointer;transition:all .15s;font-family:inherit}
+        .po-opt:hover{border-color:${C.highlight};background:${C.cardAlt}}
+        .po-opt-label{font-size:19px;font-weight:700;color:${C.accent}}
+        .qpo{display:inline-block;margin-top:7px;font-size:11.5px;font-weight:600;color:${C.highlight};background:${C.cardAlt};border:1px solid ${C.border};border-radius:100px;padding:2px 10px}
         .pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
         .pill{padding:6px 15px;border:2px solid ${C.border};border-radius:100px;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .15s;background:${C.cardBg};color:${C.text};display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:34px;text-align:center}
         .pill:hover{border-color:${C.accentLight}}
@@ -298,7 +288,7 @@ const GlobalStyles = ({ theme }) => {
         .qmessage{font-size:13px;color:${C.text};background:${C.cardAlt};border-radius:6px;padding:7px 10px;margin-top:8px;line-height:1.5;border-left:3px solid ${C.highlight}}
         .qfooter{padding:11px 14px;border-top:1px solid ${C.border};display:flex;gap:7px}
         .mrow{border:1.5px solid ${C.border};border-radius:10px;background:${C.cardBg};margin-bottom:8px;overflow:hidden}
-        .mrow-header{display:flex;align-items:flex-start;gap:9px;padding:11px 13px}
+        .mrow-header{display:flex;align-items:center;gap:9px;padding:11px 13px}
         .mrow-info{flex:1;min-width:0}
         .mrow-name{font-size:14px;font-weight:600;color:${C.text};margin-bottom:2px}
         .mrow-cat{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:100px;font-size:10.5px;font-weight:600;letter-spacing:.03em;color:${C.highlight};background:${C.cardAlt};border:1px solid ${C.border};vertical-align:middle}
@@ -435,22 +425,35 @@ const PinScreen = ({ mode, storedHash, onSuccess, onSetPin }) => {
 // ─────────────────────────────────────────────
 // OPTION ROW (admin) — add/edit/delete option types
 // ─────────────────────────────────────────────
-const TipOptionRow = ({ tip, onUpdate, onDelete }) => (
-  <div className="opt-row" style={{padding:"10px 12px"}}>
-    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-      <div style={{display:"flex",gap:5,flexShrink:0}}>
-        <button className={`mtoggle ${tip.kind!=="cash"?"on":"off"}`} onClick={()=>onUpdate({...tip,kind:"percent"})} title="Percentage">%</button>
-        <button className={`mtoggle ${tip.kind==="cash"?"on":"off"}`} onClick={()=>onUpdate({...tip,kind:"cash"})} title="Cash amount">$</button>
+const PostOrderOptionRow = ({ opt, onUpdate, onDelete }) => {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(opt.label||"");
+  const save = () => { onUpdate({...opt,label:label.trim()}); setEditing(false); };
+  const cancel = () => { setLabel(opt.label||""); setEditing(false); };
+  return (
+    <div className="mrow">
+      <div className="mrow-header">
+        {editing ? (
+          <div className="field" style={{marginBottom:0,flex:1}}>
+            <input value={label} onChange={e=>setLabel(e.target.value)}
+              placeholder="e.g. Amazing ☕" maxLength={40} autoFocus/>
+          </div>
+        ) : (
+          <div className="mrow-info">
+            <div className="mrow-name">{opt.label||<span style={{opacity:.4,fontStyle:"italic"}}>No label</span>}</div>
+          </div>
+        )}
+        <div className="mrow-actions">
+          {editing
+            ? <><button className="btn btn-o sm" onClick={cancel}>Cancel</button>
+                <button className="btn btn-p sm" disabled={!label.trim()} onClick={save}>Save</button></>
+            : <button className="btn btn-o sm" onClick={()=>setEditing(true)}>Edit</button>}
+          <button className="btn btn-d sm" onClick={()=>onDelete(opt.id)}>✕</button>
+        </div>
       </div>
-      <input type="number" min="0" value={tip.amount===""?"":tip.amount}
-        onChange={e=>onUpdate({...tip,amount:e.target.value===""?"":Math.max(0,Number(e.target.value))})}
-        style={{width:74,flexShrink:0}} aria-label="Amount"/>
-      <input value={tip.description||""} onChange={e=>onUpdate({...tip,description:e.target.value})}
-        placeholder="Description (e.g. You're the best)" maxLength={60} style={{flex:1,minWidth:130}}/>
-      <button className="btn btn-d sm" style={{flexShrink:0}} onClick={()=>onDelete(tip.id)}>✕</button>
     </div>
-  </div>
-);
+  );
+};
 
 const CategoryRow = ({ cat, onUpdate, onDelete, onMoveUp, onMoveDown }) => {
   const [editing, setEditing] = useState(false);
@@ -458,17 +461,24 @@ const CategoryRow = ({ cat, onUpdate, onDelete, onMoveUp, onMoveDown }) => {
   const save = () => { if (!name.trim()) return; onUpdate({ ...cat, name: name.trim() }); setEditing(false); };
   const cancel = () => { setName(cat.name); setEditing(false); };
   return (
-    <div className="opt-row">
-      <div className="opt-header">
-        {editing
-          ? <input value={name} onChange={e=>setName(e.target.value)} maxLength={30} autoFocus
-              onKeyDown={e=>{if(e.key==="Enter")save();if(e.key==="Escape")cancel();}} style={{flex:1,minWidth:0}}/>
-          : <span className="opt-label" style={{flex:1,minWidth:0}}>{cat.name}</span>}
-        <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0}}>
+    <div className="mrow">
+      <div className="mrow-header">
+        <div className="mrow-info">
+          {editing
+            ? <div className="field" style={{marginBottom:0,flex:1}}>
+                <input value={name} onChange={e=>setName(e.target.value)} maxLength={30} autoFocus
+                  onKeyDown={e=>{if(e.key==="Enter")save();if(e.key==="Escape")cancel();}}/>
+              </div>
+            : <div className="mrow-name">{cat.name}</div>}
+        </div>
+        <div className="mrow-actions">
           <button className="btn btn-o sm" onClick={onMoveUp} disabled={!onMoveUp} style={{padding:"5px 8px"}}>↑</button>
           <button className="btn btn-o sm" onClick={onMoveDown} disabled={!onMoveDown} style={{padding:"5px 8px"}}>↓</button>
           {editing
-            ? <button className="btn btn-p sm" disabled={!name.trim()} onClick={save}>Save</button>
+            ? <>
+                <button className="btn btn-o sm" onClick={cancel}>Cancel</button>
+                <button className="btn btn-p sm" disabled={!name.trim()} onClick={save}>Save</button>
+              </>
             : <button className="btn btn-o sm" onClick={()=>setEditing(true)}>Edit</button>}
           <button className="btn btn-d sm" onClick={()=>onDelete(cat.id)}>✕</button>
         </div>
@@ -477,26 +487,27 @@ const CategoryRow = ({ cat, onUpdate, onDelete, onMoveUp, onMoveDown }) => {
   );
 };
 
+const normalizeChoice = (c) =>
+  typeof c === "string"
+    ? { id: c, name: c, description: "" }
+    : { id: c.id||c.name, name: c.name||"", description: c.description||"" };
+
 const OptionRow = ({ opt, onUpdate, onDelete }) => {
   const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState(opt.label);
-  const [choices, setChoices] = useState(opt.choices||[]);
-  const [defaultChoiceId, setDefaultChoiceId] = useState(opt.defaultChoiceId||null);
+  const [label, setLabel] = useState(opt.label||"");
+  const [choices, setChoices] = useState((opt.choices||[]).map(normalizeChoice));
   const [newChoice, setNewChoice] = useState({name:"",description:""});
   const [editingChoiceId, setEditingChoiceId] = useState(null);
   const [editDraft, setEditDraft] = useState({name:"",description:""});
 
   const save = () => {
     if (!label.trim()||choices.length===0) return;
-    // null (not undefined) when no/stale default — Firebase rejects undefined.
-    const def = choices.some(c=>c.id===defaultChoiceId) ? defaultChoiceId : null;
-    onUpdate({...opt, label:label.trim(), choices, defaultChoiceId:def});
+    onUpdate({...opt, label:label.trim(), choices});
     setOpen(false);
   };
   const cancel = () => {
-    setLabel(opt.label);
-    setChoices(opt.choices||[]);
-    setDefaultChoiceId(opt.defaultChoiceId||null);
+    setLabel(opt.label||"");
+    setChoices((opt.choices||[]).map(normalizeChoice));
     setNewChoice({name:"",description:""});
     setEditingChoiceId(null);
     setOpen(false);
@@ -506,7 +517,7 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
     setChoices(prev=>[...prev,{id:uid(),name:newChoice.name.trim(),description:newChoice.description.trim()}]);
     setNewChoice({name:"",description:""});
   };
-  const removeChoice = (id) => { setChoices(prev=>prev.filter(c=>c.id!==id)); setDefaultChoiceId(d=>d===id?null:d); };
+  const removeChoice = (id) => setChoices(prev=>prev.filter(c=>c.id!==id));
   const startEdit = (c) => { setEditingChoiceId(c.id); setEditDraft({name:c.name,description:c.description}); };
   const saveEdit = (id) => {
     if (!editDraft.name.trim()) return;
@@ -540,7 +551,6 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
           {/* Existing choices */}
           <div style={{marginBottom:10}}>
             <div className="subsection">Choices</div>
-            {choices.length>0&&<div className="hint" style={{marginTop:-2,marginBottom:8}}>Select the ◉ default choice guests start with.</div>}
             {choices.length===0&&<div style={{fontSize:13,opacity:.5,marginBottom:8}}>No choices yet.</div>}
             {choices.map(c=>(
               <div key={c.id} style={{background:"rgba(0,0,0,.04)",borderRadius:8,padding:"10px 12px",marginBottom:7}}>
@@ -563,9 +573,8 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
                   </div>
                 ) : (
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <input type="radio" name={`def-${opt.id}`} checked={defaultChoiceId===c.id} onChange={()=>setDefaultChoiceId(c.id)} title="Set as default" style={{cursor:"pointer",flexShrink:0}}/>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13.5,fontWeight:500}}>{c.name}{defaultChoiceId===c.id&&<span style={{marginLeft:7,fontSize:10.5,fontWeight:600,opacity:.6,textTransform:"uppercase",letterSpacing:".04em"}}>Default</span>}</div>
+                      <div style={{fontSize:13.5,fontWeight:500}}>{c.name}</div>
                       {c.description&&<div style={{fontSize:12,opacity:.6,marginTop:2}}>{c.description}</div>}
                     </div>
                     <button className="btn btn-o sm" onClick={()=>startEdit(c)}>Edit</button>
@@ -816,16 +825,18 @@ const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB
 
 // Renders one order modifier. Supports the current shape ({label,value,description})
 // and legacy orders where a mod was just a string.
-const ModLine = ({ m, style }) => {
+// compact=true: renders only the choice value — used on the barista queue for minimal scanning.
+// compact=false (default): renders "Label: value — description" in full.
+const ModLine = ({ m, compact=false, style }) => {
   const isObj = m && typeof m === "object";
   const label = isObj ? m.label : "";
   const value = isObj ? (m.value ?? "") : m;
   const desc = isObj ? m.description : "";
   return (
     <div className="qmods" style={style}>
-      {label && <span>{label}: </span>}
+      {!compact && label && <span>{label}: </span>}
       <span className="qmod-v">{value}</span>
-      {desc && <span> — {desc}</span>}
+      {!compact && desc && <span> — {desc}</span>}
     </div>
   );
 };
@@ -938,7 +949,7 @@ const BrandingCard = ({ config, upd }) => {
               <button key={s} className={`btn sm ${(config.logoSize||"small")===s?"btn-p":"btn-o"}`} onClick={()=>upd({logoSize:s})}>{lbl}</button>
             ))}
           </div>
-          <div className="hint" style={{marginTop:6}}>Controls the large logo on the order and queue screens.</div>
+          <div className="hint" style={{marginTop:6}}>Set the size of the logo on the order and queue screens.</div>
         </div>
       </div>
     </div>
@@ -1005,10 +1016,10 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
     upd({categories:list});
   };
 
-  const tips = config.tipOptions||[];
-  const updateTip = (u) => upd({tipOptions:tips.map(t=>t.id===u.id?u:t)});
-  const addTip = () => upd({tipOptions:[...tips,{id:uid(),kind:"percent",amount:20,description:""}]});
-  const deleteTip = (id) => upd({tipOptions:tips.filter(t=>t.id!==id)});
+  const postOrderOpts = config.postOrderOptions||[];
+  const updatePostOrderOpt = (u) => upd({postOrderOptions:postOrderOpts.map(o=>o.id===u.id?u:o)});
+  const addPostOrderOpt = () => upd({postOrderOptions:[...postOrderOpts,{id:uid(),label:""}]});
+  const deletePostOrderOpt = (id) => upd({postOrderOptions:postOrderOpts.filter(o=>o.id!==id)});
 
   const updateOption = (updated) => upd({options:config.options.map(o=>o.id===updated.id?updated:o)});
   const deleteOption = (id) => {
@@ -1104,13 +1115,13 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         <button className="btn btn-p sm" disabled={!newOpt.label.trim()} onClick={addOption}>Add Option</button>
       </div>
 
-      {/* Menu Sections */}
+      {/* Menu Categories */}
       <div className="card">
-        <div className="eyebrow">Menu Sections</div>
+        <div className="eyebrow">Menu Categories</div>
         <div style={{fontSize:12.5,opacity:.55,marginTop:6,marginBottom:14,lineHeight:1.5}}>
-          Group drinks into sections on the order page. Drag order with ↑↓ — that's the order guests see. Assign each drink to a section when you edit it below.
+          Group drinks into categories on the order page. Use ↑↓ to reorder. Assign each drink to a category when you edit it below.
         </div>
-        {cats.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 12px"}}>No sections yet. Add one below, then assign drinks to it.</div>}
+        {cats.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 12px"}}>No categories yet. Add one below, then assign drinks to it.</div>}
         {cats.map((cat,i)=>(
           <CategoryRow key={cat.id} cat={cat} onUpdate={updateCategory} onDelete={(id)=>setConfirmDelCat(id)}
             onMoveUp={i>0 ? ()=>moveCategory(cat.id,-1) : null}
@@ -1118,14 +1129,14 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
           />
         ))}
         <hr className="divider" style={{margin:"14px 0"}}/>
-        <div className="subsection">Add Section</div>
+        <div className="subsection">Add Category</div>
         <div style={{marginTop:9,marginBottom:10}}>
           <div className="field" style={{marginBottom:10}}>
             <label>Name</label>
             <input value={newCat.name} onChange={e=>setNewCat({name:e.target.value})} placeholder="e.g. Coffee" maxLength={30} onKeyDown={e=>e.key==="Enter"&&addCategory()}/>
           </div>
         </div>
-        <button className="btn btn-p sm" disabled={!newCat.name.trim()} onClick={addCategory}>Add Section</button>
+        <button className="btn btn-p sm" disabled={!newCat.name.trim()} onClick={addCategory}>Add Category</button>
       </div>
 
       {/* Menu */}
@@ -1197,23 +1208,39 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         </div>
       </div>
 
-      {/* Tips (just for fun) */}
+      {/* Post-Order Screen */}
       <div className="card">
-        <div className="eyebrow">Tips</div>
+        <div className="eyebrow">Post-Order Screen</div>
         <div className="trow" style={{marginTop:7}}>
-          <div className="tlabel">Tip screen <span style={{opacity:.5,fontWeight:400}}>— a joke step, no real payments</span></div>
-          <button className={`tog ${config.tipsEnabled?"on":"off"}`} onClick={()=>upd({tipsEnabled:!config.tipsEnabled})}/>
+          <div className="tlabel">Enabled <span style={{opacity:.5,fontWeight:400}}>— shown after guests place an order</span></div>
+          <button className={`tog ${config.postOrderEnabled?"on":"off"}`} onClick={()=>upd({postOrderEnabled:!config.postOrderEnabled})}/>
         </div>
-        {config.tipsEnabled && (
-          <div style={{marginTop:10}}>
-            <div style={{fontSize:12.5,opacity:.55,marginBottom:12,lineHeight:1.5}}>
-              Guests see these after placing an order. Toggle each between a percentage (%) and a cash amount ($), and add a cheeky description.
+        {config.postOrderEnabled && (
+          <div style={{marginTop:12}}>
+            <div style={{fontSize:12.5,opacity:.55,marginBottom:14,lineHeight:1.5}}>
+              An optional screen guests see after placing their order. Use it for compliments, feedback, tips, etc.
             </div>
-            {tips.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 10px"}}>No tip options yet.</div>}
-            {tips.map(t=>(
-              <TipOptionRow key={t.id} tip={t} onUpdate={updateTip} onDelete={deleteTip}/>
+            <div className="f2" style={{marginBottom:10}}>
+              <div className="field" style={{marginBottom:0}}>
+                <label>Emoji</label>
+                <input value={config.postOrderEmoji||""} onChange={e=>upd({postOrderEmoji:e.target.value})} maxLength={2} style={{width:64,fontSize:24,textAlign:"center",padding:"6px 8px"}}/>
+              </div>
+              <div className="field" style={{marginBottom:0}}>
+                <label>Screen title</label>
+                <input value={config.postOrderTitle||""} onChange={e=>upd({postOrderTitle:e.target.value})} maxLength={60} placeholder="e.g. Leave a compliment"/>
+              </div>
+            </div>
+            <div className="field" style={{marginBottom:14}}>
+              <label>Subtitle</label>
+              <input value={config.postOrderSubtitle||""} onChange={e=>upd({postOrderSubtitle:e.target.value})} maxLength={120} placeholder="e.g. A little note for your barista."/>
+            </div>
+            <div className="subsection">Options</div>
+            <div className="hint" style={{marginBottom:10}}>Each option is shown large on the guest screen.</div>
+            {postOrderOpts.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 10px"}}>No options yet.</div>}
+            {postOrderOpts.map(o=>(
+              <PostOrderOptionRow key={o.id} opt={o} onUpdate={updatePostOrderOpt} onDelete={deletePostOrderOpt}/>
             ))}
-            <button className="btn btn-o sm" style={{marginTop:4}} onClick={addTip}>Add tip option</button>
+            <button className="btn btn-o sm" style={{marginTop:4}} onClick={addPostOrderOpt}>Add option</button>
           </div>
         )}
       </div>
@@ -1239,7 +1266,7 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
           <span className="tlabel">Include current queue <span style={{opacity:.5,fontWeight:400}}>— {orders.length} pending, {completed.length} served</span></span>
           <button type="button" className={`tog ${exportQueue?"on":"off"}`} onClick={()=>setExportQueue(v=>!v)}/>
         </label>
-        <div className="hint" style={{marginBottom:10}}>Always includes branding, menu, sections, options, and appearance.</div>
+        <div className="hint" style={{marginBottom:10}}>Always includes branding, menu, categories, options, and appearance.</div>
         <button className="btn btn-p sm" onClick={doExport}>Export to file</button>
 
         <hr className="divider" style={{margin:"16px 0"}}/>
@@ -1253,7 +1280,7 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
             <div style={{fontSize:12.5,opacity:.7,marginBottom:8}}>Found in file{importData.exportedAt?` (exported ${new Date(importData.exportedAt).toLocaleString()})`:""}:</div>
             {importHasSetup&&(
               <label className="trow" style={{cursor:"pointer",padding:"7px 0"}}>
-                <span className="tlabel">Café setup <span style={{opacity:.5,fontWeight:400}}>— {(importData.config.menu||[]).length} drinks, {(importData.config.categories||[]).length} sections</span></span>
+                <span className="tlabel">Café setup <span style={{opacity:.5,fontWeight:400}}>— {(importData.config.menu||[]).length} drinks, {(importData.config.categories||[]).length} categories</span></span>
                 <button type="button" className={`tog ${importSetup?"on":"off"}`} onClick={()=>setImportSetup(v=>!v)}/>
               </label>
             )}
@@ -1272,7 +1299,7 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
       {confirmRestore&&<Confirm title="Restore from backup?" body={`This will overwrite your ${[importSetup&&"café setup",importQueue&&"queue"].filter(Boolean).join(" and ")} with the file's contents. This cannot be undone.`} confirmLabel="Restore" danger onConfirm={doRestore} onCancel={()=>setConfirmRestore(false)}/>}
       {confirmClear&&<Confirm title="Clear all orders?" body={`This will permanently remove all pending and completed orders. This cannot be undone.`} confirmLabel="Clear orders" danger onConfirm={()=>{onClearOrders();setConfirmClear(false);}} onCancel={()=>setConfirmClear(false)}/>}
       {confirmDelOpt&&<Confirm title="Delete this option?" body="This will remove the option from all drinks that use it. This cannot be undone." confirmLabel="Delete" danger onConfirm={()=>deleteOption(confirmDelOpt)} onCancel={()=>setConfirmDelOpt(null)}/>}
-      {confirmDelCat&&<Confirm title="Delete this section?" body="Drinks in this section won't be deleted — they'll just become uncategorized. This cannot be undone." confirmLabel="Delete" danger onConfirm={()=>deleteCategory(confirmDelCat)} onCancel={()=>setConfirmDelCat(null)}/>}
+      {confirmDelCat&&<Confirm title="Delete this category?" body="Drinks in this category won't be deleted — they'll just become uncategorized. This cannot be undone." confirmLabel="Delete" danger onConfirm={()=>deleteCategory(confirmDelCat)} onCancel={()=>setConfirmDelCat(null)}/>}
     </div>
   );
 };
@@ -1305,8 +1332,8 @@ const Guest = ({ config, isOpen, onOrder }) => {
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [tipStep, setTipStep] = useState(false); // showing the joke tip screen?
-  const [tip, setTip] = useState(null);          // chosen tip (for the confirmation)
+  const [postOrderStep, setPostOrderStep] = useState(false); // showing the post-order screen?
+  const [postOrderChoice, setPostOrderChoice] = useState(null); // chosen post-order option
   const [cam, setCam] = useState(false);
   const vidRef = useRef(null);
   const streamRef = useRef(null);
@@ -1320,14 +1347,7 @@ const Guest = ({ config, isOpen, onOrder }) => {
     // Pre-select each option's default choice (or its first choice as a fallback).
     const d = config.menu.find(x=>x.id===id);
     const opts = d ? (config.options||[]).filter(o=>(d.optionIds||[]).includes(o.id)) : [];
-    const init = {};
-    for (const o of opts) {
-      const cs = o.choices||[];
-      if (!cs.length) continue;
-      const def = cs.find(c=>c.id===o.defaultChoiceId) || cs[0];
-      init[o.id] = def.name || def;
-    }
-    setSelections(init);
+    setSelections({});
     setPickerOpen(false); // collapse the list to bring options into focus
   };
 
@@ -1355,14 +1375,13 @@ const Guest = ({ config, isOpen, onOrder }) => {
   };
   const stopCam = () => { streamRef.current?.getTracks().forEach(t=>t.stop()); setCam(false); };
 
-  const tipsOn = config.tipsEnabled && (config.tipOptions||[]).length > 0;
-  const tipLabel = (t) => t.kind==="cash" ? `$${t.amount}` : `${t.amount}%`;
+  const postOrderOn = config.postOrderEnabled && (config.postOrderOptions||[]).length > 0;
 
-  // Finalize the order, optionally attaching a (joke) tip choice.
-  const placeOrder = useCallback((tipChoice) => {
+  // Finalize the order, optionally attaching a post-order screen choice.
+  const placeOrder = useCallback((postOrderChoice) => {
     if (busy) return;
     const clean=sanitizeName(name);
-    if (!clean) { setNameErr("Please enter your name"); setTipStep(false); return; }
+    if (!clean) { setNameErr("Please enter your name"); setPostOrderStep(false); return; }
     setBusy(true);
     // Store each mod with its option label + choice description so the queue is
     // self-explanatory (e.g. "Drink Size: Regular" instead of a bare "Regular").
@@ -1372,20 +1391,20 @@ const Guest = ({ config, isOpen, onOrder }) => {
       return { label:o.label, value, description:(choice&&choice.description)||"" };
     });
     const order = {id:uid(),name:clean,photo,drink:drink.name,mods,request:request.trim().slice(0,MAX_REQUEST_LENGTH),message:message.trim().slice(0,MAX_MESSAGE_LENGTH),timestamp:Date.now()};
-    if (tipChoice) order.tip = { label: tipLabel(tipChoice), description: tipChoice.description||"" };
+    if (postOrderChoice) order.postOrder = { label: postOrderChoice.label||"" };
     onOrder(order);
-    setTip(tipChoice ? order.tip : null);
-    setTipStep(false); setDone(true); setBusy(false);
+    setPostOrderChoice(postOrderChoice ? order.postOrder : null);
+    setPostOrderStep(false); setDone(true); setBusy(false);
   },[busy,name,drinkOptions,selections,photo,drink,request,message]);
 
   const submit = () => {
     if (busy||!valid()) return;
     if (!sanitizeName(name)) { setNameErr("Please enter your name"); return; }
-    if (tipsOn) { setTipStep(true); return; } // detour through the tip screen
+    if (postOrderOn) { setPostOrderStep(true); return; }
     placeOrder(null);
   };
 
-  const reset = () => { setName("");setPhoto(null);setDrinkId(null);setPickerOpen(true);setSelections({});setRequest("");setMessage("");setDone(false);setTipStep(false);setTip(null);setNameErr(""); };
+  const reset = () => { setName("");setPhoto(null);setDrinkId(null);setPickerOpen(true);setSelections({});setRequest("");setMessage("");setDone(false);setPostOrderStep(false);setPostOrderChoice(null);setNameErr(""); };
 
   if (!isOpen) return <div className="page"><div className="hero"><LogoDisplay config={config} size="hero"/><div className="hero-name">{config.cafeName}</div><div className="hero-tag">{config.closedMessage||"We're not open yet — check back soon."}</div></div></div>;
 
@@ -1415,28 +1434,27 @@ const Guest = ({ config, isOpen, onOrder }) => {
       </div>
     </div>
   );
-  if (tipStep) return (
+  if (postOrderStep) return (
     <div className="page">
       <div className="hero" style={{paddingTop:56}}>
-        <span className="hero-ico">💸</span>
-        <div className="hero-name">Add a tip?</div>
-        <div className="hero-tag">100% optional — and 100% fake. No charge, just vibes.</div>
+        <span className="hero-ico">{config.postOrderEmoji||"🌟"}</span>
+        <div className="hero-name">{config.postOrderTitle||"Leave a compliment"}</div>
+        <div className="hero-tag">{config.postOrderSubtitle||"A little note for your barista."}</div>
       </div>
       <div className="card">
         <div style={{display:"flex",flexDirection:"column",gap:9}}>
-          {(config.tipOptions||[]).map(t=>(
-            <button key={t.id} type="button" className="tip-opt" onClick={()=>placeOrder(t)}>
-              <span className="tip-opt-amt">{tipLabel(t)}</span>
-              {t.description&&<span className="tip-opt-desc">{t.description}</span>}
+          {(config.postOrderOptions||[]).map(o=>(
+            <button key={o.id} type="button" className="po-opt" onClick={()=>placeOrder(o)}>
+              <span className="po-opt-label">{o.label}</span>
             </button>
           ))}
         </div>
-        <button className="btn btn-o full" style={{marginTop:14}} onClick={()=>placeOrder(null)}>No tip, thanks</button>
+        <button className="btn btn-o full" style={{marginTop:14}} onClick={()=>placeOrder(null)}>No thanks</button>
       </div>
     </div>
   );
 
-  if (done) return <div className="page"><div className="hero" style={{paddingTop:72}}><span className="hero-ico">✅</span><div className="hero-name">Order placed!</div><div className="hero-tag" style={{marginBottom:tip?14:28}}>{drink?.name} coming right up.</div>{tip&&<div className="hero-tag" style={{marginBottom:28,fontWeight:600}}>Thanks for the {tip.label} tip! 😄 (we didn't actually charge you)</div>}<button className="btn btn-p" onClick={reset}>Order another</button></div></div>;
+  if (done) return <div className="page"><div className="hero" style={{paddingTop:72}}><span className="hero-ico">✅</span><div className="hero-name">Order placed!</div><div className="hero-tag" style={{marginBottom:28}}>{drink?.name} coming right up.</div><button className="btn btn-p" onClick={reset}>Order another</button></div></div>;
 
   return (
     <div className="page">
@@ -1447,7 +1465,7 @@ const Guest = ({ config, isOpen, onOrder }) => {
       </div>
       <div className="card">
         <div className="field">
-          <label>Your first name</label>
+          <label>Your name</label>
           <input value={name} onChange={e=>{setName(e.target.value);if(nameErr)setNameErr("");}} onBlur={()=>!sanitizeName(name)&&name&&setNameErr("Please enter a valid name")} maxLength={MAX_NAME_LENGTH} className={nameErr?"err":""}/>
           {nameErr&&<div className="ferr">{nameErr}</div>}
         </div>
@@ -1468,20 +1486,18 @@ const Guest = ({ config, isOpen, onOrder }) => {
         )}
 
         {drink && !pickerOpen ? (
-          <div className="picked" onClick={()=>setPickerOpen(true)}>
-            <div className="drow-check on">✓</div>
-            <div className="picked-body">
-              <div className="eyebrow" style={{marginBottom:2}}>Your drink</div>
-              <div className="picked-name">{drink.name}</div>
+          <div className="dtile on" style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:18,padding:"11px 14px"}}>
+            <div>
+              <div className="eyebrow" style={{marginBottom:2,textAlign:"left"}}>Your drink</div>
+              <div className="dtile-name" style={{textAlign:"left"}}>{drink.name}</div>
+              {drink.description&&<div className="dtile-desc" style={{textAlign:"left"}}>{drink.description}</div>}
             </div>
-            <button type="button" className="btn btn-o sm" onClick={(e)=>{e.stopPropagation();setPickerOpen(true);}}>Change</button>
+            <button type="button" className="btn btn-o sm" onClick={()=>{setDrinkId(null);setSelections({});setPickerOpen(true);}}>Change</button>
           </div>
         ) : (
           <>
             <div className="eyebrow">Choose your drink</div>
             {(() => {
-              // Build ordered, non-empty sections from the managed category list;
-              // drinks with no/unknown category go in a trailing "More" section.
               const cats = config.categories || [];
               const catIds = new Set(cats.map(c => c.id));
               const sections = cats
@@ -1489,19 +1505,16 @@ const Guest = ({ config, isOpen, onOrder }) => {
                 .filter(s => s.items.length);
               const rest = config.menu.filter(d => !d.categoryId || !catIds.has(d.categoryId));
               if (rest.length) sections.push({ title: sections.length ? "More" : "", items: rest });
-              const renderRow = d => (
-                <div key={d.id} className={`drow ${drinkId===d.id?"on":""}`} onClick={()=>selectDrink(d.id)}>
-                  <div className="drow-body">
-                    <div className="drow-name">{d.name}</div>
-                    {d.description&&<div className="drow-desc">{d.description}</div>}
-                  </div>
-                  <div className="drow-check">{drinkId===d.id?"✓":""}</div>
+              const renderTile = d => (
+                <div key={d.id} className={`dtile ${drinkId===d.id?"on":""}`} onClick={()=>selectDrink(d.id)}>
+                  <div className="dtile-name">{d.name}</div>
+                  {d.description&&<div className="dtile-desc">{d.description}</div>}
                 </div>
               );
               return sections.map((s,i) => (
                 <div key={s.title||i}>
                   {s.title && <div className="menu-section-title">{s.title}</div>}
-                  <div className="dlist" style={!s.title?{marginTop:9}:undefined}>{s.items.map(renderRow)}</div>
+                  <div className="dgrid" style={!s.title?{marginTop:9}:undefined}>{s.items.map(renderTile)}</div>
                 </div>
               ));
             })()}
@@ -1586,9 +1599,9 @@ const Queue = ({ orders, completed, config, onComplete, onRemove }) => (
               {o.photo?<img src={o.photo} className="qphoto" alt={o.name}/>:<div className="qavatar">{getAvatar(o.name||"")}</div>}
               <div className="qname">{o.name}</div>
               <div className="qdrink">{o.drink}</div>
-              {mods.map((m,i)=><ModLine key={i} m={m}/>)}
-              {o.request&&<div className="qrequest">"{o.request}"</div>}
-              {o.tip&&<div className="qtip">💸 {o.tip.label} tip{o.tip.description?` — ${o.tip.description}`:""}</div>}
+              {mods.map((m,i)=><ModLine key={i} m={m} compact/>)}
+              {o.request&&<div className="qrequest">{o.request}</div>}
+              {o.postOrder&&<div className="qpo">{o.postOrder.label}</div>}
             </div>
             <div className="qfooter">
               <button className="btn btn-s sm" style={{flex:1}} onClick={()=>onComplete(o.id)}>✓ Done</button>
@@ -1615,8 +1628,8 @@ const Queue = ({ orders, completed, config, onComplete, onRemove }) => (
                 {o.photo?<img src={o.photo} className="qphoto" alt={o.name}/>:<div className="qavatar">{getAvatar(o.name||"")}</div>}
                 <div className="qname">{o.name}</div>
                 <div className="qdrink">{o.drink}</div>
-                {mods.map((m,i)=><ModLine key={i} m={m}/>)}
-                {o.request&&<div className="qrequest">"{o.request}"</div>}
+                {mods.map((m,i)=><ModLine key={i} m={m} compact/>)}
+                {o.request&&<div className="qrequest">{o.request}</div>}
               </div>
             </div>
           )})}
@@ -1681,10 +1694,7 @@ const PublicQueue = ({ orders, completed, config, theme, isOpen }) => {
                     }
                     <div style={{flex:1,minWidth:0}}>
                       <div className="qname" style={{fontSize:22}}>{o.name}</div>
-                      <div className="qdrink" style={{fontSize:17,fontWeight:600,marginTop:2}}>{o.drink}</div>
-                      {(o.mods||[]).map((m,i)=><ModLine key={i} m={m} style={{fontSize:13}}/>)}
                       {o.message&&<div className="qmessage">"{o.message}"</div>}
-                      {o.tip&&<div className="qtip">💸 {o.tip.label} tip{o.tip.description?` — ${o.tip.description}`:""}</div>}
                     </div>
                   </div>
                 </div>
@@ -1713,8 +1723,6 @@ const PublicQueue = ({ orders, completed, config, theme, isOpen }) => {
                     }
                     <div style={{flex:1,minWidth:0}}>
                       <div className="qname" style={{fontSize:18}}>{o.name}</div>
-                      <div className="qdrink" style={{fontSize:14.5,fontWeight:600,marginTop:2}}>{o.drink}</div>
-                      {(o.mods||[]).map((m,i)=><ModLine key={i} m={m}/>)}
                       {o.message&&<div className="qmessage" style={{fontSize:12}}>"{o.message}"</div>}
                     </div>
                   </div>
@@ -1897,7 +1905,7 @@ export default function App() {
     }
     if (queue) {
       const toObj=(arr)=> (Array.isArray(arr)&&arr.length)
-        ? Object.fromEntries(arr.map((o,i)=>{ const {fbKey,...rest}=o; return [fbKey||`imp-${Date.now()}-${i}`, rest]; }))
+        ? Object.fromEntries(arr.map((o,i)=>{ const {fbKey,...rest}=o; return [fbKey||`imp-${Date.now()}-${i}-${Math.random().toString(36).slice(2,6)}`, rest]; }))
         : null;
       set(ref(db,"orders"), toObj(data.orders));
       set(ref(db,"completed"), toObj(data.completed));
