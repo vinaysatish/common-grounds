@@ -251,11 +251,14 @@ const GlobalStyles = ({ theme }) => {
         .btn-s{background:${C.success};color:#fff}
         .sm{padding:5px 11px;font-size:12.5px}.full{width:100%}
         .dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:9px;margin-bottom:18px;align-items:stretch}
-        .dtile{padding:13px;border:2px solid ${C.border};border-radius:10px;cursor:pointer;transition:all .15s;background:${C.cardBg};text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center}
+        .dtile{border:2px solid ${C.border};border-radius:10px;cursor:pointer;transition:all .15s;background:${C.cardBg};text-align:center;display:flex;flex-direction:column;overflow:hidden;height:180px}
         .dtile:hover{border-color:${C.accentLight};background:${C.cardAlt}}
         .dtile.on{border-color:${C.highlight};background:${C.cardAlt}}
-        .dtile-name{font-size:13.5px;font-weight:600;color:${C.text};line-height:1.3;margin-bottom:3px}
-        .dtile-desc{font-size:11.5px;color:${C.textMuted};line-height:1.4;margin-top:3px}
+        .dtile-photo{width:100%;flex:1;object-fit:cover;min-height:0}
+        .dtile-body{padding:9px 10px;flex-shrink:0;text-align:center}
+        .dtile-body-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:13px}
+        .dtile-name{font-size:13px;font-weight:600;color:${C.text};line-height:1.3}
+        .dtile-desc{font-size:11px;color:${C.textMuted};line-height:1.3;margin-top:2px}
         .menu-section-title{font-family:${F.display};font-size:16px;font-weight:600;color:${C.headingText};margin:20px 0 9px;padding-bottom:5px;border-bottom:1.5px solid ${C.border}}
         .po-opt{display:flex;align-items:center;justify-content:center;width:100%;text-align:center;padding:15px 17px;border:2px solid ${C.border};border-radius:11px;background:${C.cardBg};color:${C.text};cursor:pointer;transition:all .15s;font-family:inherit}
         .po-opt:hover{border-color:${C.highlight};background:${C.cardAlt}}
@@ -614,9 +617,13 @@ const OptionRow = ({ opt, onUpdate, onDelete }) => {
 // ─────────────────────────────────────────────
 // MENU ITEM ROW (admin) — inline editable, generalized options
 // ─────────────────────────────────────────────
+const MAX_DRINK_PHOTO_BYTES = 2 * 1024 * 1024; // 2MB
+
 const MenuItemRow = ({ drink, allOptions, allCategories=[], onUpdate, onDelete, onMoveUp, onMoveDown }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(drink);
+  const [photoErr, setPhotoErr] = useState("");
+  const photoRef = useRef();
 
   const toggleOpt = (id) => {
     const ids = draft.optionIds||[];
@@ -624,7 +631,19 @@ const MenuItemRow = ({ drink, allOptions, allCategories=[], onUpdate, onDelete, 
   };
   const setCategory = (id) => setDraft(d=>({...d, categoryId: d.categoryId===id ? "" : id}));
   const save = () => { onUpdate({...draft,name:draft.name.trim()}); setEditing(false); };
-  const cancel = () => { setDraft(drink); setEditing(false); };
+  const cancel = () => { setDraft(drink); setPhotoErr(""); setEditing(false); };
+
+  const handlePhoto = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const valid = ["image/png","image/jpeg","image/jpg","image/webp"];
+    if (!valid.includes(file.type)) { setPhotoErr("Unsupported format. Use PNG, JPG, or WebP."); return; }
+    if (file.size > MAX_DRINK_PHOTO_BYTES) { setPhotoErr(`Image exceeds 2 MB (${(file.size/1024/1024).toFixed(1)} MB).`); return; }
+    setPhotoErr("");
+    const reader = new FileReader();
+    reader.onload = ev => setDraft(d=>({...d, photo:ev.target.result}));
+    reader.readAsDataURL(file);
+  };
 
   const appliedOptions = allOptions.filter(o=>(drink.optionIds||[]).includes(o.id));
   const appliedCategory = allCategories.find(c=>c.id===drink.categoryId);
@@ -657,6 +676,21 @@ const MenuItemRow = ({ drink, allOptions, allCategories=[], onUpdate, onDelete, 
           <div className="field" style={{marginBottom:10}}>
             <label>Description (optional)</label>
             <textarea value={draft.description||""} onChange={e=>setDraft(d=>({...d,description:e.target.value}))} placeholder="e.g. Espresso, oat milk, house-made vanilla syrup — served iced" maxLength={200} rows={2}/>
+          </div>
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:12.5,fontWeight:500,marginBottom:6,opacity:.7}}>Photo (optional)</div>
+            {draft.photo && (
+              <div style={{marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+                <img src={draft.photo} alt="drink preview" style={{width:64,height:64,objectFit:"cover",borderRadius:6,border:`1px solid rgba(0,0,0,.1)`}}/>
+                <button className="btn btn-d sm" onClick={()=>{setDraft(d=>({...d,photo:null}));setPhotoErr("");}}>Remove</button>
+              </div>
+            )}
+            <input ref={photoRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp" style={{display:"none"}} onChange={handlePhoto}/>
+            <button className="btn btn-o sm" onClick={()=>photoRef.current?.click()}>
+              {draft.photo?"Replace photo":"Upload photo"}
+            </button>
+            <div className="hint" style={{marginTop:5}}>PNG, JPG, WebP · max 2 MB · square photos work best</div>
+            {photoErr&&<div className="ferr" style={{marginTop:4}}>{photoErr}</div>}
           </div>
           {allCategories.length>0 && (
             <div style={{marginBottom:10}}>
@@ -1486,13 +1520,16 @@ const Guest = ({ config, isOpen, onOrder }) => {
         )}
 
         {drink && !pickerOpen ? (
-          <div className="dtile on" style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:18,padding:"11px 14px"}}>
-            <div>
+          <div className="dtile on" style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:18,padding:0,height:"auto",overflow:"hidden"}}>
+            {drink.photo && <img src={drink.photo} alt={drink.name} style={{width:72,height:72,objectFit:"cover",flexShrink:0}}/>}
+            <div style={{padding:"11px 14px",flex:1,minWidth:0}}>
               <div className="eyebrow" style={{marginBottom:2,textAlign:"left"}}>Your drink</div>
               <div className="dtile-name" style={{textAlign:"left"}}>{drink.name}</div>
               {drink.description&&<div className="dtile-desc" style={{textAlign:"left"}}>{drink.description}</div>}
             </div>
-            <button type="button" className="btn btn-o sm" onClick={()=>{setDrinkId(null);setSelections({});setPickerOpen(true);}}>Change</button>
+            <div style={{padding:"0 14px 0 0",flexShrink:0}}>
+              <button type="button" className="btn btn-o sm" onClick={()=>{setDrinkId(null);setSelections({});setPickerOpen(true);}}>Change</button>
+            </div>
           </div>
         ) : (
           <>
@@ -1507,8 +1544,20 @@ const Guest = ({ config, isOpen, onOrder }) => {
               if (rest.length) sections.push({ title: sections.length ? "More" : "", items: rest });
               const renderTile = d => (
                 <div key={d.id} className={`dtile ${drinkId===d.id?"on":""}`} onClick={()=>selectDrink(d.id)}>
-                  <div className="dtile-name">{d.name}</div>
-                  {d.description&&<div className="dtile-desc">{d.description}</div>}
+                  {d.photo ? (
+                    <>
+                      <img src={d.photo} alt={d.name} className="dtile-photo"/>
+                      <div className="dtile-body">
+                        <div className="dtile-name">{d.name}</div>
+                        {d.description&&<div className="dtile-desc">{d.description}</div>}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="dtile-body-center">
+                      <div className="dtile-name">{d.name}</div>
+                      {d.description&&<div className="dtile-desc">{d.description}</div>}
+                    </div>
+                  )}
                 </div>
               );
               return sections.map((s,i) => (
