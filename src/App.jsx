@@ -1149,33 +1149,36 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         <button className="btn btn-p sm" disabled={!newOpt.label.trim()} onClick={addOption}>Add Option</button>
       </div>
 
-      {/* Menu Categories */}
-      <div className="card">
-        <div className="eyebrow">Menu Categories</div>
-        <div style={{fontSize:12.5,opacity:.55,marginTop:6,marginBottom:14,lineHeight:1.5}}>
-          Group drinks into categories on the order page. Use ↑↓ to reorder. Assign each drink to a category when you edit it below.
-        </div>
-        {cats.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 12px"}}>No categories yet. Add one below, then assign drinks to it.</div>}
-        {cats.map((cat,i)=>(
-          <CategoryRow key={cat.id} cat={cat} onUpdate={updateCategory} onDelete={(id)=>setConfirmDelCat(id)}
-            onMoveUp={i>0 ? ()=>moveCategory(cat.id,-1) : null}
-            onMoveDown={i<cats.length-1 ? ()=>moveCategory(cat.id,1) : null}
-          />
-        ))}
-        <hr className="divider" style={{margin:"14px 0"}}/>
-        <div className="subsection">Add Category</div>
-        <div style={{marginTop:9,marginBottom:10}}>
-          <div className="field" style={{marginBottom:10}}>
-            <label>Name</label>
-            <input value={newCat.name} onChange={e=>setNewCat({name:e.target.value})} placeholder="e.g. Coffee" maxLength={30} onKeyDown={e=>e.key==="Enter"&&addCategory()}/>
-          </div>
-        </div>
-        <button className="btn btn-p sm" disabled={!newCat.name.trim()} onClick={addCategory}>Add Category</button>
-      </div>
-
       {/* Menu */}
       <div className="card">
         <div className="eyebrow">Menu</div>
+
+        {/* Categories inline */}
+        <div style={{marginBottom:18}}>
+          <div className="subsection" style={{marginTop:7}}>Categories</div>
+          <div style={{fontSize:12.5,opacity:.55,marginBottom:10,lineHeight:1.5}}>
+            Group drinks into categories on the order page. Use ↑↓ to reorder. Assign each drink to a category when you edit it below.
+          </div>
+          {cats.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"4px 0 10px"}}>No categories yet.</div>}
+          {cats.map((cat,i)=>(
+            <CategoryRow key={cat.id} cat={cat} onUpdate={updateCategory} onDelete={(id)=>setConfirmDelCat(id)}
+              onMoveUp={i>0 ? ()=>moveCategory(cat.id,-1) : null}
+              onMoveDown={i<cats.length-1 ? ()=>moveCategory(cat.id,1) : null}
+            />
+          ))}
+          <div style={{marginTop:10,display:"flex",gap:9,alignItems:"flex-end"}}>
+            <div className="field" style={{marginBottom:0,flex:1}}>
+              <label>New category name</label>
+              <input value={newCat.name} onChange={e=>setNewCat({name:e.target.value})} placeholder="e.g. Coffee" maxLength={30} onKeyDown={e=>e.key==="Enter"&&addCategory()}/>
+            </div>
+            <button className="btn btn-p sm" style={{marginBottom:1}} disabled={!newCat.name.trim()} onClick={addCategory}>Add</button>
+          </div>
+        </div>
+
+        <hr className="divider" style={{margin:"4px 0 16px"}}/>
+
+        {/* Drinks */}
+        <div className="subsection">Drinks</div>
         <div style={{marginTop:11,marginBottom:14}}>
           {config.menu.length===0&&<div style={{fontSize:13.5,opacity:.5,padding:"13px 0"}}>No drinks yet.</div>}
           {config.menu.map((d,i)=>(
@@ -1220,32 +1223,19 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         </div>
       </div>
 
-      {/* Service */}
+      {/* Guest Experience */}
       <div className="card">
-        <div className="eyebrow">Service</div>
+        <div className="eyebrow">Guest Experience</div>
         <div className="trow" style={{marginTop:7}}>
-          <div className="tlabel"><span className={`dot ${isOpen?"dot-on":"dot-off"}`}/>{isOpen?"Open — accepting orders":"Closed"}</div>
-          <button className={`tog ${isOpen?"on":"off"}`} onClick={()=>setIsOpen(v=>!v)}/>
-        </div>
-        <div className="trow">
           <div className="tlabel">Photo capture <span style={{opacity:.5,fontWeight:400}}>— let guests add a photo</span></div>
           <button className={`tog ${config.photoEnabled!==false?"on":"off"}`} onClick={()=>upd({photoEnabled:config.photoEnabled===false})}/>
         </div>
-        <div className="field" style={{marginBottom:8,marginTop:4}}>
-          <label>Closed message</label>
-          <input value={config.closedMessage||""} onChange={e=>upd({closedMessage:e.target.value})} placeholder="We're not open yet — check back soon." maxLength={120}/>
-        </div>
-        <div className="field" style={{marginBottom:0}}>
-          <label>Access code <span style={{opacity:.5,fontWeight:400}}>(optional)</span></label>
-          <input value={config.accessCode||""} onChange={e=>upd({accessCode:e.target.value.trim()})} placeholder="Leave blank for no code" maxLength={20}/>
-          <div className="hint">If set, guests must enter this code before placing an order.</div>
-        </div>
-      </div>
 
-      {/* Post-Order Screen */}
-      <div className="card">
-        <div className="eyebrow">Post-Order Screen</div>
-        <div className="trow" style={{marginTop:7}}>
+        <hr className="divider"/>
+
+        {/* Post-Order Screen */}
+        <div className="subsection">Post-Order Screen</div>
+        <div className="trow" style={{marginTop:4}}>
           <div className="tlabel">Enabled <span style={{opacity:.5,fontWeight:400}}>— shown after guests place an order</span></div>
           <button className={`tog ${config.postOrderEnabled?"on":"off"}`} onClick={()=>upd({postOrderEnabled:!config.postOrderEnabled})}/>
         </div>
@@ -1279,9 +1269,27 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
         )}
       </div>
 
-      {/* Queue */}
+      {/* Service */}
       <div className="card">
-        <div className="eyebrow">Queue</div>
+        <div className="eyebrow">Service</div>
+        <div className="trow" style={{marginTop:7}}>
+          <div className="tlabel"><span className={`dot ${isOpen?"dot-on":"dot-off"}`}/>{isOpen?"Open — accepting orders":"Closed"}</div>
+          <button className={`tog ${isOpen?"on":"off"}`} onClick={()=>setIsOpen(v=>!v)}/>
+        </div>
+        <div className="field" style={{marginBottom:8,marginTop:4}}>
+          <label>Closed message</label>
+          <input value={config.closedMessage||""} onChange={e=>upd({closedMessage:e.target.value})} placeholder="We're not open yet — check back soon." maxLength={120}/>
+        </div>
+        <div className="field" style={{marginBottom:0}}>
+          <label>Access code <span style={{opacity:.5,fontWeight:400}}>(optional)</span></label>
+          <input value={config.accessCode||""} onChange={e=>upd({accessCode:e.target.value.trim()})} placeholder="Leave blank for no code" maxLength={20}/>
+          <div className="hint">If set, guests must enter this code before placing an order.</div>
+        </div>
+      </div>
+
+      {/* Queue Management */}
+      <div className="card">
+        <div className="eyebrow">Queue Management</div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:7}}>
           <div style={{fontSize:13.5,opacity:.6}}>{orders.length} order{orders.length!==1?"s":""} in queue</div>
           <button className="btn btn-d sm" disabled={orders.length===0&&completed.length===0} onClick={()=>setConfirmClear(true)}>Clear all orders</button>
@@ -1292,22 +1300,22 @@ const Admin = ({ config, setConfig, isOpen, setIsOpen, orders, completed, onClea
       <div className="card">
         <div className="eyebrow">Backup &amp; Restore</div>
         <div style={{fontSize:12.5,opacity:.55,marginTop:6,marginBottom:14,lineHeight:1.5}}>
-          Save your café setup to a JSON file, or restore it from one. Everything stays on your device.
+          Save your café setup to a file, or restore it from one. Everything stays on your device.
         </div>
 
-        <div className="subsection">Export</div>
+        <div className="subsection">Backup</div>
         <label className="trow" style={{cursor:"pointer"}}>
           <span className="tlabel">Include current queue <span style={{opacity:.5,fontWeight:400}}>— {orders.length} pending, {completed.length} served</span></span>
           <button type="button" className={`tog ${exportQueue?"on":"off"}`} onClick={()=>setExportQueue(v=>!v)}/>
         </label>
         <div className="hint" style={{marginBottom:10}}>Always includes branding, menu, categories, options, and appearance.</div>
-        <button className="btn btn-p sm" onClick={doExport}>Export to file</button>
+        <button className="btn btn-p sm" onClick={doExport}>Download backup</button>
 
         <hr className="divider" style={{margin:"16px 0"}}/>
 
-        <div className="subsection">Import</div>
+        <div className="subsection">Restore</div>
         <input ref={fileRef} type="file" accept="application/json,.json" onChange={onFilePicked} style={{display:"none"}}/>
-        <button className="btn btn-o sm" onClick={()=>fileRef.current?.click()}>Choose backup file…</button>
+        <button className="btn btn-o sm" onClick={()=>fileRef.current?.click()}>Restore from backup</button>
         {importErr&&<div className="ferr" style={{marginTop:9}}>{importErr}</div>}
         {importData&&(
           <div style={{marginTop:12}}>
